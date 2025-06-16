@@ -10,7 +10,10 @@
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "format": "prettier --write .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
@@ -31,9 +34,20 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
+    "@babel/core": "^7.27.4",
+    "@babel/preset-env": "^7.27.2",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.2.0",
+    "@types/babel__preset-env": "^7",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.0.10",
     "@types/react-native": "^0.73.0",
+    "@types/react-test-renderer": "^19",
+    "babel-jest": "^30.0.0",
+    "jest": "^30.0.0",
+    "react-test-renderer": "^19.1.0",
     "typescript": "~5.8.3"
   },
   "private": true,

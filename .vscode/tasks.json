@@ -45,6 +45,22 @@
 			"problemMatcher": ["$eslint-stylish"]
 		},
 		{
+			"label": "Run Tests",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["test"],
+			"group": "test",
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Tests with Coverage",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["test:coverage"],
+			"group": "test",
+			"problemMatcher": []
+		},
+		{
 			"label": "Clean Cache",
 			"type": "shell",
 			"command": "yarn",
