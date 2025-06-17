@@ -1,0 +1,10 @@
+appId: com.nextup
+---
+- launchApp
+- tapOn: "Currently Watching"
+- assertVisible:
+    text: "No shows yet"
+    optional: true
+- assertVisible:
+    text: "Start tracking your favorite shows"
+    optional: true

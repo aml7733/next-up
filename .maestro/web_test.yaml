@@ -1,0 +1,11 @@
+appId: localhost:8081
+---
+- launchApp:
+    appId: localhost:8081
+    url: "http://localhost:8081"
+- assertVisible: "NextUp"
+- assertVisible: "Profile"
+- assertVisible: "Search" 
+- assertVisible: "Currently Watching"
+- tapOn: "Profile"
+- assertVisible: "Welcome to NextUp"
