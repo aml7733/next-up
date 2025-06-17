@@ -1,10 +1,9 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
-import { PaperProvider } from 'react-native-paper';
+import { render, fireEvent } from '@testing-library/react-native';
 import EmptyState from '../EmptyState';
 
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<PaperProvider>{component}</PaperProvider>);
+  return render(component);
 };
 
 describe('EmptyState', () => {
@@ -40,27 +39,27 @@ describe('EmptyState', () => {
     const actionText = 'Browse Shows';
     const onActionPress = jest.fn();
     
-    const { getByText } = renderWithTheme(
+    const { getByTestId } = renderWithTheme(
       <EmptyState 
         actionText={actionText}
         onActionPress={onActionPress}
       />
     );
     
-    expect(getByText(actionText)).toBeTruthy();
+    expect(getByTestId('empty-state-action-button')).toBeTruthy();
   });
 
   it('calls onActionPress when action button is pressed', () => {
     const onActionPress = jest.fn();
-    const { getByText } = renderWithTheme(
+    const { getByTestId } = renderWithTheme(
       <EmptyState 
         actionText="Browse Shows"
         onActionPress={onActionPress}
       />
     );
     
-    const actionButton = getByText('Browse Shows');
-    actionButton.props.onPress();
+    const actionButton = getByTestId('empty-state-action-button');
+    fireEvent.press(actionButton);
     
     expect(onActionPress).toHaveBeenCalledTimes(1);
   });
@@ -68,10 +67,10 @@ describe('EmptyState', () => {
   it('applies custom style', () => {
     const customStyle = { backgroundColor: 'blue' };
     const { getByTestId } = renderWithTheme(
-      <EmptyState style={customStyle} testID="empty-container" />
+      <EmptyState style={customStyle} />
     );
     
-    const container = getByTestId('empty-container');
+    const container = getByTestId('empty-state');
     expect(container.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining(customStyle)

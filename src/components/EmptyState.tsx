@@ -30,11 +30,11 @@ export default function EmptyState({
   return (
     <View 
       style={[styles.container, style]}
-      testID={testID}
+      testID={testID || "empty-state"}
       accessibilityRole="text"
       accessibilityLabel={`${title}. ${displayMessage}`}
     >
-      <Card style={styles.card}>
+      <Card style={styles.card} testID="empty-container">
         <Card.Content style={styles.content}>
           <View style={styles.iconContainer}>
             <MaterialCommunityIcons 
@@ -62,6 +62,7 @@ export default function EmptyState({
                 mode="contained" 
                 onPress={onActionPress}
                 style={styles.actionButton}
+                testID="empty-state-action-button"
               >
                 {actionText}
               </Button>

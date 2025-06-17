@@ -1,10 +1,9 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { PaperProvider } from 'react-native-paper';
 import LoadingState from '../LoadingState';
 
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<PaperProvider>{component}</PaperProvider>);
+  return render(component);
 };
 
 describe('LoadingState', () => {
