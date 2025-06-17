@@ -1,12 +1,15 @@
+import './setupStoreTests';
 import { renderHook, act } from '@testing-library/react-native';
 import { useAuthStore } from '../authStore';
 
-// Reset the store before each test
-const initialState = useAuthStore.getState();
-
 describe('authStore', () => {
   beforeEach(() => {
-    useAuthStore.setState(initialState, true);
+    // Reset to initial state with proper values
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
   });
 
   it('has correct initial state', () => {

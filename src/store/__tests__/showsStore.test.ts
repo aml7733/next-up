@@ -1,12 +1,15 @@
+import './setupStoreTests';
 import { renderHook, act } from '@testing-library/react-native';
 import { useShowsStore } from '../showsStore';
 
-// Reset the store before each test
-const initialState = useShowsStore.getState();
-
 describe('showsStore', () => {
   beforeEach(() => {
-    useShowsStore.setState(initialState, true);
+    // Reset to initial state with proper values (don't use replace: true)
+    useShowsStore.setState({
+      userShows: [],
+      isLoading: false,
+      error: null,
+    });
   });
 
   it('has correct initial state', () => {
