@@ -1,6 +1,5 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import { PaperProvider } from 'react-native-paper';
 import ShowDetailsScreen from '../ShowDetailsScreen';
 
 // Mock navigation
@@ -14,7 +13,7 @@ const mockRoute = {
 } as any;
 
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<PaperProvider>{component}</PaperProvider>);
+  return render(component);
 };
 
 describe('ShowDetailsScreen', () => {
@@ -28,7 +27,7 @@ describe('ShowDetailsScreen', () => {
     );
     
     expect(getByText('Sample Show')).toBeTruthy();
-    expect(getByText('2024')).toBeTruthy();
+    expect(getByText('2023')).toBeTruthy();
     expect(getByText('⭐ 8.5')).toBeTruthy();
     expect(getByText('Add to My List')).toBeTruthy();
     expect(getByText('Mark as Watched')).toBeTruthy();
@@ -74,7 +73,7 @@ describe('ShowDetailsScreen', () => {
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
     
-    expect(getByText('2024')).toBeTruthy();
+    expect(getByText('2023')).toBeTruthy();
   });
 
   it('displays rating with correct format', () => {

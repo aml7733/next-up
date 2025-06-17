@@ -7,7 +7,10 @@ export default function CurrentlyWatchingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        testID="currently-watching-scroll"
+      >
         <Text variant="headlineMedium" style={styles.title}>
           Currently Watching
         </Text>

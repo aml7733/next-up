@@ -1,6 +1,5 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import { PaperProvider } from 'react-native-paper';
 import ProfileScreen from '../ProfileScreen';
 
 // Mock the auth store
@@ -12,7 +11,7 @@ jest.mock('../../store/authStore', () => ({
 }));
 
 const renderWithTheme = (component: React.ReactElement) => {
-  return render(<PaperProvider>{component}</PaperProvider>);
+  return render(component);
 };
 
 describe('ProfileScreen', () => {
