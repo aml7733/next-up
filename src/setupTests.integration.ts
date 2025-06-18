@@ -29,11 +29,11 @@ afterAll(() => {
 
 // Mock React Native Platform (simpler approach)
 jest.mock('react-native', () => {
-  const RN = jest.requireActual('react-native');
   const React = require('react');
+  const ActualReactNative = jest.requireActual('react-native');
   
   return {
-    ...RN,
+    ...ActualReactNative,
     Platform: {
       OS: 'web',
       select: (obj: any) => obj.web || obj.default || obj.android || obj.ios,
@@ -108,9 +108,10 @@ jest.mock('@expo/vector-icons', () => ({
 
 // Mock navigation (required for React Navigation)
 jest.mock('@react-navigation/native', () => {
-  const actualNav = jest.requireActual('@react-navigation/native');
+  const ActualReactNavigation = jest.requireActual('@react-navigation/native');
+  
   return {
-    ...actualNav,
+    ...ActualReactNavigation,
     useNavigation: () => ({
       navigate: jest.fn(),
       dispatch: jest.fn(),
@@ -162,74 +163,106 @@ jest.mock('./services/tmdb', () => ({
   getShowDetails: jest.fn(),
 }));
 
-// Mock react-native-paper with integration-friendly components
-// These are more realistic than unit test mocks but still testable
+// Mock react-native-paper with React Native components for better integration testing
+// These use actual RN components so getByText and other queries work naturally
 jest.mock('react-native-paper', () => {
   const React = require('react');
+  const { Text: RNText, View, TouchableOpacity, TextInput } = jest.requireActual('react-native');
   
   return {
-    // Text component that directly exposes text content for getByText queries
+    // Use simple div with testID preservation for text elements
     Text: ({ children, variant, style, testID, ...props }: any) => {
-      // Use a span element that React Testing Library can easily find
-      return React.createElement('span', { 
+      return React.createElement('div', { 
         ...props, 
-        testID,
-        'data-variant': variant, 
-        style,
+        testID: testID || undefined,
+        'data-testid': testID || undefined, // Add both for maximum compatibility
+        style: {
+          fontSize: variant === 'headlineMedium' ? 24 : variant === 'titleLarge' ? 20 : 16,
+          fontWeight: variant === 'headlineMedium' ? 'bold' : 'normal',
+          ...style
+        },
       }, children);
     },
     
-    Button: ({ children, mode, onPress, style, ...props }: any) => 
+    Button: ({ children, mode, onPress, style, testID, ...props }: any) => 
       React.createElement(
         'button', 
         { 
           ...props, 
           onClick: onPress, 
+          testID: testID || 'paper-button',        // React Native style
+          'data-testid': testID || 'paper-button', // HTML style  
           'data-mode': mode,
-          style,
-          role: 'button',
-          'data-testid': 'paper-button'
+          style: {
+            padding: '12px',
+            backgroundColor: mode === 'contained' ? '#6200ea' : 'transparent',
+            borderWidth: mode === 'outlined' ? '1px' : '0',
+            borderColor: '#6200ea',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            ...style
+          },
         }, 
         children
       ),
     
     Card: Object.assign(
-      ({ children, style, ...props }: any) => 
+      ({ children, style, testID, ...props }: any) => 
         React.createElement('div', { 
           ...props, 
-          'data-component': 'card', 
-          style,
-          'data-testid': 'paper-card'
+          testID: testID || 'paper-card',
+          'data-testid': testID || 'paper-card',
+          style: {
+            backgroundColor: '#ffffff', 
+            borderRadius: 8, 
+            elevation: 2,
+            boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
+            padding: 8,
+            ...style
+          },
         }, children),
       {
-        Content: ({ children, style, ...props }: any) => 
+        Content: ({ children, style, testID, ...props }: any) => 
           React.createElement('div', { 
             ...props, 
-            'data-component': 'card-content', 
-            style,
-            'data-testid': 'paper-card-content'
+            testID: testID || 'paper-card-content',
+            'data-testid': testID || 'paper-card-content',
+            style: { padding: 16, ...style },
           }, children),
       }
     ),
     
     Avatar: {
-      Text: ({ label, size, style, ...props }: any) => 
-        React.createElement('span', { 
+      Text: ({ label, size, style, testID, ...props }: any) => 
+        React.createElement('div', { 
           ...props, 
-          'data-component': 'avatar-text', 
-          'data-size': size,
-          style,
-          'data-testid': 'paper-avatar-text',
-          'data-label': label
+          testID: testID || 'paper-avatar-text',
+          'data-testid': testID || 'paper-avatar-text',
+          style: {
+            width: size || 40,
+            height: size || 40,
+            borderRadius: (size || 40) / 2,
+            backgroundColor: '#6200ea',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            color: '#ffffff', 
+            fontSize: (size || 40) / 3,
+            ...style
+          },
         }, label),
     },
     
-    Divider: ({ style, ...props }: any) => 
-      React.createElement('hr', { 
+    Divider: ({ style, testID, ...props }: any) => 
+      React.createElement('div', { 
         ...props, 
-        'data-component': 'divider', 
-        style,
-        'data-testid': 'paper-divider'
+        testID: testID || 'paper-divider',
+        'data-testid': testID || 'paper-divider',
+        style: { 
+          height: 1, 
+          backgroundColor: '#cccccc',
+          ...style
+        },
       }),
     
     Searchbar: ({ placeholder, value, onChangeText, onSubmitEditing, style, testID, ...props }: any) => 
@@ -237,23 +270,44 @@ jest.mock('react-native-paper', () => {
         ...props, 
         placeholder,
         value,
-        testID,
+        testID: testID || 'paper-searchbar',        // React Native style
+        'data-testid': testID || 'paper-searchbar', // HTML style
         onChange: (e: any) => onChangeText && onChangeText(e.target.value),
         onKeyPress: (e: any) => {
           if (e.key === 'Enter' && onSubmitEditing) {
             onSubmitEditing();
           }
         },
-        style,
-        'data-component': 'searchbar'
+        style: {
+          padding: '12px',
+          borderRadius: '4px',
+          backgroundColor: '#f5f5f5',
+          borderWidth: '1px',
+          borderColor: '#cccccc',
+          ...style
+        },
       }),
     
     Chip: ({ children, mode, style, testID, ...props }: any) => 
-      React.createElement('span', { 
+      React.createElement('div', { 
         ...props, 
-        testID,
-        'data-mode': mode,
-        style,
+        testID: testID || 'paper-chip',
+        'data-testid': testID || 'paper-chip',
+        style: {
+          display: 'inline-block',
+          paddingLeft: 12,
+          paddingRight: 12,
+          paddingTop: 6,
+          paddingBottom: 6,
+          borderRadius: 16,
+          backgroundColor: mode === 'outlined' ? 'transparent' : '#6200ea',
+          borderWidth: mode === 'outlined' ? 1 : 0,
+          borderStyle: 'solid',
+          borderColor: '#6200ea',
+          color: mode === 'outlined' ? '#6200ea' : '#ffffff',
+          fontSize: 12,
+          ...style
+        },
       }, children),
     
     useTheme: () => ({

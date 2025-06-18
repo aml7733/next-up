@@ -45,13 +45,14 @@ export default function EmptyState({
             />
           </View>
           
-          <Text variant="titleLarge" style={styles.title}>
+          <Text variant="titleLarge" style={styles.title} testID="empty-state-title">
             {title}
           </Text>
           
           <Text 
             variant="bodyMedium" 
             style={[styles.description, { color: theme.colors.onSurfaceVariant }]}
+            testID="empty-state-description"
           >
             {displayMessage}
           </Text>
