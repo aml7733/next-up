@@ -13,7 +13,7 @@ module.exports = {
         '.*\\.integration\\.test\\..*',
       ],
       transformIgnorePatterns: [
-        'node_modules/(?!(jest-)?react-native|@react-native|@react-native-community|@testing-library|@react-navigation|@expo|expo|react-native-paper|react-native-vector-icons|@expo/vector-icons)',
+        'node_modules/(?!(jest-)?react-native|@react-native|@react-native-community|@testing-library|@react-navigation|@expo|expo|react-native-paper|react-native-vector-icons|@expo/vector-icons|react-native-safe-area-context)',
       ],
       testEnvironment: 'jsdom',
       moduleNameMapper: {
@@ -33,7 +33,7 @@ module.exports = {
         '<rootDir>/src/**/*.integration.test.{js,jsx,ts,tsx}',
       ],
       transformIgnorePatterns: [
-        'node_modules/(?!(jest-)?react-native|@react-native|@react-native-community|@testing-library|@react-navigation|@expo|expo|react-native-paper|react-native-vector-icons|@expo/vector-icons)',
+        'node_modules/(?!(jest-)?react-native|@react-native|@react-native-community|@testing-library|@react-navigation|@expo|expo|react-native-paper|react-native-vector-icons|@expo/vector-icons|react-native-safe-area-context)',
       ],
       testEnvironment: 'jsdom',
       moduleNameMapper: {

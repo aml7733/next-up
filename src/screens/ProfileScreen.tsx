@@ -23,28 +23,28 @@ export default function ProfileScreen() {
         </Text>
 
         {isAuthenticated && user ? (
-          <Card style={styles.profileCard}>
+          <Card style={styles.profileCard} testID="authenticated-profile-card">
             <Card.Content style={styles.profileContent}>
               <Avatar.Text 
                 size={80} 
                 label={user.email?.charAt(0).toUpperCase() || 'U'} 
                 style={styles.avatar}
               />
-              <Text variant="titleLarge" style={styles.email}>
+              <Text variant="titleLarge" style={styles.email} testID="user-email">
                 {user.email}
               </Text>
               {user.username && (
-                <Text variant="bodyLarge" style={styles.username}>
+                <Text variant="bodyLarge" style={styles.username} testID="user-username">
                   @{user.username}
                 </Text>
               )}
             </Card.Content>
           </Card>
         ) : (
-          <Card style={styles.profileCard}>
+          <Card style={styles.profileCard} testID="unauthenticated-profile-card">
             <Card.Content>
-              <Text variant="titleLarge">Welcome to NextUp</Text>
-              <Text variant="bodyMedium" style={styles.placeholderText}>
+              <Text variant="titleLarge" testID="welcome-title">Welcome to NextUp</Text>
+              <Text variant="bodyMedium" style={styles.placeholderText} testID="welcome-message">
                 Sign in to start tracking your favorite TV shows.
               </Text>
             </Card.Content>
@@ -81,6 +81,7 @@ export default function ProfileScreen() {
               mode="outlined" 
               onPress={handleSignOut}
               style={styles.actionButton}
+              testID="sign-out-button"
             >
               Sign Out
             </Button>
@@ -89,6 +90,7 @@ export default function ProfileScreen() {
               <Button 
                 mode="contained" 
                 style={styles.actionButton}
+                testID="sign-in-button"
                 onPress={() => {
                   // TODO: Navigate to sign in screen
                   console.log('Navigate to sign in');
@@ -99,6 +101,7 @@ export default function ProfileScreen() {
               <Button 
                 mode="outlined" 
                 style={styles.actionButton}
+                testID="sign-up-button"
                 onPress={() => {
                   // TODO: Navigate to sign up screen
                   console.log('Navigate to sign up');

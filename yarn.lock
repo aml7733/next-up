@@ -6529,6 +6529,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jest-transform-stub@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "jest-transform-stub@npm:2.0.0"
+  checksum: 10c0/75c8c193882ab6d81d07fcd34b88decdaeccc39de5fcf1b8ea2af36870223d188f89ea8b150811ceec853329e2b1a22b66e8850d84bd4482f11a5325cabe16c2
+  languageName: node
+  linkType: hard
+
 "jest-util@npm:30.0.0":
   version: 30.0.0
   resolution: "jest-util@npm:30.0.0"
@@ -7579,6 +7586,7 @@ __metadata:
     expo-status-bar: "npm:~2.2.3"
     jest: "npm:~29.7.0"
     jest-environment-jsdom: "npm:^30.0.0"
+    jest-transform-stub: "npm:^2.0.0"
     maestro: "npm:^2.1.1"
     react: "npm:19.0.0"
     react-dom: "npm:19.0.0"

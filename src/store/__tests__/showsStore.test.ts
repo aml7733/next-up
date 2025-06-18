@@ -3,13 +3,32 @@ import { renderHook, act } from '@testing-library/react-native';
 import { useShowsStore } from '../showsStore';
 
 describe('showsStore', () => {
-  beforeEach(() => {
-    // Reset to initial state with proper values (don't use replace: true)
-    useShowsStore.setState({
-      userShows: [],
-      isLoading: false,
-      error: null,
+  // Helper function to create mock show data
+  const createMockShow = (overrides = {}) => ({
+    id: '1',
+    user_id: 'user1',
+    show_id: 123,
+    status: 'watching' as const,
+    current_season: 1,
+    current_episode: 1,
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01',
+    ...overrides,
+  });
+
+  // Helper to reset store state
+  const resetStore = () => {
+    act(() => {
+      useShowsStore.setState({
+        userShows: [],
+        isLoading: false,
+        error: null,
+      });
     });
+  };
+
+  beforeEach(() => {
+    resetStore();
   });
 
   it('has correct initial state', () => {
@@ -22,17 +41,7 @@ describe('showsStore', () => {
 
   it('adds a show correctly', () => {
     const { result } = renderHook(() => useShowsStore());
-    
-    const mockShow = {
-      id: '1',
-      user_id: 'user1',
-      show_id: 123,
-      status: 'watching' as const,
-      current_season: 1,
-      current_episode: 1,
-      created_at: '2024-01-01',
-      updated_at: '2024-01-01',
-    };
+    const mockShow = createMockShow();
 
     act(() => {
       result.current.addShow(mockShow);
@@ -44,17 +53,7 @@ describe('showsStore', () => {
 
   it('updates a show correctly', () => {
     const { result } = renderHook(() => useShowsStore());
-    
-    const mockShow = {
-      id: '1',
-      user_id: 'user1',
-      show_id: 123,
-      status: 'watching' as const,
-      current_season: 1,
-      current_episode: 1,
-      created_at: '2024-01-01',
-      updated_at: '2024-01-01',
-    };
+    const mockShow = createMockShow();
 
     act(() => {
       result.current.addShow(mockShow);
@@ -78,27 +77,13 @@ describe('showsStore', () => {
   it('removes a show correctly', () => {
     const { result } = renderHook(() => useShowsStore());
     
-    const mockShow1 = {
-      id: '1',
-      user_id: 'user1',
-      show_id: 123,
-      status: 'watching' as const,
-      current_season: 1,
-      current_episode: 1,
-      created_at: '2024-01-01',
-      updated_at: '2024-01-01',
-    };
-
-    const mockShow2 = {
-      id: '2',
-      user_id: 'user1',
-      show_id: 456,
+    const mockShow1 = createMockShow({ id: '1', show_id: 123 });
+    const mockShow2 = createMockShow({ 
+      id: '2', 
+      show_id: 456, 
       status: 'completed' as const,
-      current_season: 1,
-      current_episode: 10,
-      created_at: '2024-01-01',
-      updated_at: '2024-01-01',
-    };
+      current_episode: 10 
+    });
 
     act(() => {
       result.current.addShow(mockShow1);
@@ -119,6 +104,8 @@ describe('showsStore', () => {
     const { result } = renderHook(() => useShowsStore());
     
     const mockShows = [
+      createMockShow({ id: '1', show_id: 123 }),
+      createMockShow({ id: '2', show_id: 456, status: 'completed' as const }),
       {
         id: '1',
         user_id: 'user1',

@@ -20,24 +20,28 @@ export default function SearchScreen() {
           value={searchQuery}
           onSubmitEditing={() => handleSearch(searchQuery)}
           style={styles.searchbar}
+          testID="search-input"
         />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        testID="search-scroll"
+      >
         {searchQuery ? (
-          <Text variant="titleMedium" style={styles.resultsTitle}>
+          <Text variant="titleMedium" style={styles.resultsTitle} testID="search-results-title">
             Search results for "{searchQuery}"
           </Text>
         ) : (
           <>
-            <Text variant="headlineMedium" style={styles.title}>
+            <Text variant="headlineMedium" style={styles.title} testID="discover-title">
               Discover Shows
             </Text>
             
             <Card style={styles.placeholderCard}>
               <Card.Content>
-                <Text variant="titleLarge">Popular Shows</Text>
-                <Text variant="bodyMedium" style={styles.placeholderText}>
+                <Text variant="titleLarge" testID="popular-shows-title">Popular Shows</Text>
+                <Text variant="bodyMedium" style={styles.placeholderText} testID="popular-shows-description">
                   Search for your favorite TV shows or browse popular ones.
                 </Text>
               </Card.Content>

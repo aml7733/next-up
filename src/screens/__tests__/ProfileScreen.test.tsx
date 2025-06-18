@@ -15,16 +15,30 @@ const renderWithTheme = (component: React.ReactElement) => {
 };
 
 describe('ProfileScreen', () => {
+  // Helper to create mock user data
+  const createMockUser = (overrides = {}) => ({
+    id: '1',
+    email: 'test@example.com',
+    username: 'testuser',
+    created_at: '2024-01-01',
+    ...overrides,
+  });
+
+  // Helper to set auth store state
+  const setAuthStore = (user: any = null, isAuthenticated = false) => {
+    mockUseAuthStore.mockReturnValue({
+      user,
+      isAuthenticated,
+      signOut: mockSignOut,
+    });
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('renders correctly when user is not authenticated', () => {
-    mockUseAuthStore.mockReturnValue({
-      user: null,
-      isAuthenticated: false,
-      signOut: mockSignOut,
-    });
+    setAuthStore();
 
     const { getByText } = renderWithTheme(<ProfileScreen />);
     
@@ -36,18 +50,8 @@ describe('ProfileScreen', () => {
   });
 
   it('renders correctly when user is authenticated', () => {
-    const mockUser = {
-      id: '1',
-      email: 'test@example.com',
-      username: 'testuser',
-      created_at: '2024-01-01',
-    };
-
-    mockUseAuthStore.mockReturnValue({
-      user: mockUser,
-      isAuthenticated: true,
-      signOut: mockSignOut,
-    });
+    const mockUser = createMockUser();
+    setAuthStore(mockUser, true);
 
     const { getByText } = renderWithTheme(<ProfileScreen />);
     
