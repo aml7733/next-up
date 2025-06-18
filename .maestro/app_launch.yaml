@@ -1,0 +1,8 @@
+appId: com.nextup
+---
+- launchApp
+- assertVisible: "Profile"
+- assertVisible: "Search" 
+- assertVisible: "Currently Watching"
+- tapOn: "Profile"
+- assertVisible: "Welcome to NextUp"

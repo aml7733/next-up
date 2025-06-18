@@ -1,0 +1,9 @@
+appId: com.nextup
+---
+- launchApp
+- tapOn: "Search"
+- assertVisible: "Search Shows"
+- tapOn: 
+    id: "search-input"
+- inputText: "Breaking Bad"
+- assertVisible: "Breaking Bad"

@@ -1,0 +1,72 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Expo Dev Server",
+			"type": "shell",
+			"command": "yarn",
+			"args": [
+				"start"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run on iOS Simulator",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["ios"],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Run on Android Emulator",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["android"],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Type Check",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["tsc", "--noEmit"],
+			"group": "build",
+			"problemMatcher": ["$tsc"]
+		},
+		{
+			"label": "Lint",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["lint"],
+			"group": "build",
+			"problemMatcher": ["$eslint-stylish"]
+		},
+		{
+			"label": "Run Tests",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["test"],
+			"group": "test",
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Tests with Coverage",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["test:coverage"],
+			"group": "test",
+			"problemMatcher": []
+		},
+		{
+			"label": "Clean Cache",
+			"type": "shell",
+			"command": "yarn",
+			"args": ["start", "--clear"],
+			"group": "build",
+			"problemMatcher": []
+		}
+	]
+}
