@@ -5,10 +5,7 @@ describe('Utility Functions', () => {
   describe('config', () => {
     it('has correct structure', () => {
       const { config } = getUtils();
-      expect(config).toHaveProperty('supabase');
       expect(config).toHaveProperty('tmdb');
-      expect(config.supabase).toHaveProperty('url');
-      expect(config.supabase).toHaveProperty('anonKey');
       expect(config.tmdb).toHaveProperty('apiKey');
       expect(config.tmdb).toHaveProperty('baseUrl');
       expect(config.tmdb).toHaveProperty('imageBaseUrl');
@@ -30,10 +27,6 @@ describe('Utility Functions', () => {
   // - Setting up environment variables at the Jest configuration level
   
   describe.skip('isConfigValid - Environment Variable Tests (TODO)', () => {
-    it('should return false when Supabase config is missing', () => {
-      // TODO: Fix environment variable testing approach
-    });
-
     it('should return false when TMDB API key is missing', () => {
       // TODO: Fix environment variable testing approach  
     });
