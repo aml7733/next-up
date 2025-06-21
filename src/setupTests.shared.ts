@@ -74,24 +74,74 @@ console.warn = (...args) => {
 };
 
 // Mock external APIs that should be mocked in all test types
-jest.mock('./services/supabase', () => ({
-  auth: {
-    getUser: jest.fn(),
-    signInWithPassword: jest.fn(),
-    signUp: jest.fn(),
-    signOut: jest.fn(),
-  },
-  from: jest.fn(() => ({
-    select: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    delete: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-  })),
-}));
-
 jest.mock('./services/tmdb', () => ({
   searchShows: jest.fn(),
   getShowDetails: jest.fn(),
   getTrendingShows: jest.fn(),
+}));
+
+// Mock the local database
+jest.mock('./services/database', () => ({
+  localDB: {
+    init: jest.fn(),
+    createUser: jest.fn(),
+    getUserByUsername: jest.fn(),
+    getUserById: jest.fn(),
+    getAllUsers: jest.fn(),
+    updateUser: jest.fn(),
+    deleteUser: jest.fn(),
+    addUserShow: jest.fn(),
+    getUserShows: jest.fn(),
+    updateUserShow: jest.fn(),
+    deleteUserShow: jest.fn(),
+    getUserShowByShowId: jest.fn(),
+    addShow: jest.fn(),
+    getShow: jest.fn(),
+    searchShows: jest.fn(),
+    updateShow: jest.fn(),
+    close: jest.fn(),
+  },
+}));
+
+// Mock AsyncStorage
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(), 
+  removeItem: jest.fn(),
+  clear: jest.fn(),
+  getAllKeys: jest.fn(),
+  multiGet: jest.fn(),
+  multiSet: jest.fn(),
+  multiRemove: jest.fn(),
+}));
+
+// Mock Expo SQLite
+jest.mock('expo-sqlite', () => ({
+  openDatabaseAsync: jest.fn(),
+  SQLiteDatabase: jest.fn(),
+}));
+
+// Mock database service
+jest.mock('./services/database', () => ({
+  localDB: {
+    init: jest.fn(),
+    createUser: jest.fn(),
+    getUserByUsername: jest.fn(),
+    getUserById: jest.fn(),
+    updateUser: jest.fn(),
+    deleteUser: jest.fn(),
+    addShow: jest.fn(),
+    getShowById: jest.fn(),
+    searchShows: jest.fn(),
+    addUserShow: jest.fn(),
+    getUserShows: jest.fn(),
+    getUserShow: jest.fn(),
+    updateUserShow: jest.fn(),
+    deleteUserShow: jest.fn(),
+  },
+}));
+
+// Mock Expo SQLite
+jest.mock('expo-sqlite', () => ({
+  openDatabaseAsync: jest.fn(),
 }));

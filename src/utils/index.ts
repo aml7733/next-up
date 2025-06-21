@@ -1,9 +1,5 @@
 // Environment configuration getter
 export const getConfig = () => ({
-  supabase: {
-    url: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-  },
   tmdb: {
     apiKey: process.env.EXPO_PUBLIC_TMDB_API_KEY || '',
     baseUrl: 'https://api.themoviedb.org/3',
@@ -16,12 +12,7 @@ export const config = getConfig();
 
 // Validation helpers
 export const isConfigValid = () => {
-  const { supabase, tmdb } = getConfig();
-  
-  if (!supabase.url || !supabase.anonKey) {
-    console.warn('Supabase configuration is missing. Please add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your environment.');
-    return false;
-  }
+  const { tmdb } = getConfig();
   
   if (!tmdb.apiKey) {
     console.warn('TMDB API key is missing. Please add EXPO_PUBLIC_TMDB_API_KEY to your environment.');

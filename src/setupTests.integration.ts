@@ -8,7 +8,7 @@ import './setupTests.shared';
 // The shared setup already handles:
 // - React Native internal components that cause ES module issues
 // - @expo/vector-icons mocking
-// - External API mocking (Supabase, TMDB)
+// - External API mocking (TMDB)
 // - Console warning suppression
 
 // Integration tests intentionally use real navigation to test navigation flows
