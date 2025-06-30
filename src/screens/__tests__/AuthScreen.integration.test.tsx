@@ -24,44 +24,44 @@ describe('AuthScreen Integration', () => {
   it('should start with sign up screen by default', () => {
     renderAuthScreen();
     
-    expect(screen.getByText('Create Account')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Username')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Email (optional)')).toBeTruthy();
+    expect(screen.getByTestId('signup-button-text')).toHaveTextContent('Create Account');
+    expect(screen.getByTestId('username-input')).toBeTruthy();
+    expect(screen.getByTestId('email-input')).toBeTruthy();
   });
 
   it('should switch between sign up and sign in modes', () => {
     renderAuthScreen();
     
     // Should start with sign up
-    expect(screen.getByText('Create Account')).toBeTruthy();
+    expect(screen.getByTestId('signup-button-text')).toHaveTextContent('Create Account');
     
     // Switch to sign in
     fireEvent.press(screen.getByText('Already have an account? Sign In'));
     
     expect(screen.getByText('Welcome Back')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Username')).toBeTruthy();
-    expect(screen.queryByPlaceholderText('Email (optional)')).toBeNull();
+    expect(screen.getByTestId('username-input')).toBeTruthy();
+    expect(screen.queryByTestId('email-input')).toBeNull();
     
     // Switch back to sign up
     fireEvent.press(screen.getByText("Don't have an account? Sign Up"));
     
-    expect(screen.getByText('Create Account')).toBeTruthy();
-    expect(screen.getByPlaceholderText('Email (optional)')).toBeTruthy();
+    expect(screen.getByTestId('signup-button-text')).toHaveTextContent('Create Account');
+    expect(screen.getByTestId('email-input')).toBeTruthy();
   });
 
   it('should handle complete sign up flow', async () => {
     renderAuthScreen();
     
     // Fill out sign up form
-    fireEvent.changeText(screen.getByPlaceholderText('Username'), 'testuser');
-    fireEvent.changeText(screen.getByPlaceholderText('Email (optional)'), 'test@example.com');
+    fireEvent.changeText(screen.getByTestId('username-input'), 'testuser');
+    fireEvent.changeText(screen.getByTestId('email-input'), 'test@example.com');
     
     // Submit form
-    fireEvent.press(screen.getByText('Create Account'));
+    fireEvent.press(screen.getByTestId('signup-button'));
     
     // Should show loading state temporarily
     await waitFor(() => {
-      expect(screen.queryByText('Create Account')).toBeTruthy();
+      expect(screen.queryByTestId('signup-button')).toBeTruthy();
     });
   });
 
@@ -72,14 +72,14 @@ describe('AuthScreen Integration', () => {
     fireEvent.press(screen.getByText('Already have an account? Sign In'));
     
     // Fill out sign in form
-    fireEvent.changeText(screen.getByPlaceholderText('Username'), 'existinguser');
+    fireEvent.changeText(screen.getByTestId('username-input'), 'existinguser');
     
     // Submit form
-    fireEvent.press(screen.getByText('Sign In'));
+    fireEvent.press(screen.getByTestId('signin-button'));
     
     // Should attempt to sign in
     await waitFor(() => {
-      expect(screen.queryByText('Sign In')).toBeTruthy();
+      expect(screen.queryByTestId('signin-button')).toBeTruthy();
     });
   });
 
@@ -87,15 +87,15 @@ describe('AuthScreen Integration', () => {
     renderAuthScreen();
     
     // Fill out sign up form
-    fireEvent.changeText(screen.getByPlaceholderText('Username'), 'testuser');
-    fireEvent.changeText(screen.getByPlaceholderText('Email (optional)'), 'test@example.com');
+    fireEvent.changeText(screen.getByTestId('username-input'), 'testuser');
+    fireEvent.changeText(screen.getByTestId('email-input'), 'test@example.com');
     
     // Switch to sign in and back
     fireEvent.press(screen.getByText('Already have an account? Sign In'));
     fireEvent.press(screen.getByText("Don't have an account? Sign Up"));
     
     // Form should be reset (this is expected behavior)
-    expect(screen.getByPlaceholderText('Username').props.value).toBeFalsy();
-    expect(screen.getByPlaceholderText('Email (optional)').props.value).toBeFalsy();
+    expect(screen.getByTestId('username-input').props.value).toBeFalsy();
+    expect(screen.getByTestId('email-input').props.value).toBeFalsy();
   });
 });
