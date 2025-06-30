@@ -150,12 +150,13 @@ jest.mock('./services/database', () => ({
 // Mock localAuth service
 jest.mock('./services/localAuth', () => ({
   localAuth: {
-    init: jest.fn(),
-    signIn: jest.fn(),
-    signUp: jest.fn(),
-    signOut: jest.fn(),
-    isAuthenticated: jest.fn(),
-    getCurrentUser: jest.fn(),
+    init: jest.fn().mockResolvedValue(undefined),
+    signIn: jest.fn().mockResolvedValue({ user: null, error: 'Not implemented in mock' }),
+    signUp: jest.fn().mockResolvedValue({ user: null, error: 'Not implemented in mock' }),
+    signOut: jest.fn().mockResolvedValue({ error: null }),
+    isAuthenticated: jest.fn().mockResolvedValue(false),
+    getCurrentUser: jest.fn().mockReturnValue(null),
+    getCurrentUserId: jest.fn().mockReturnValue(null),
   },
 }));
 

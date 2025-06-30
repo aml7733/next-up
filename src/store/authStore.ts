@@ -48,7 +48,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (username: string) => {
     set({ isLoading: true });
     try {
-      const { user, error } = await localAuth.signIn(username);
+      const result = await localAuth.signIn(username);
+      
+      // Handle the case where the service returns undefined (mocks or errors)
+      if (!result) {
+        return { error: 'Service unavailable' };
+      }
+      
+      const { user, error } = result;
       if (error) {
         return { error };
       }
@@ -66,7 +73,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signUp: async (username: string, email?: string) => {
     set({ isLoading: true });
     try {
-      const { user, error } = await localAuth.signUp(username, email);
+      const result = await localAuth.signUp(username, email);
+      
+      // Handle the case where the service returns undefined (mocks or errors)
+      if (!result) {
+        return { error: 'Service unavailable' };
+      }
+      
+      const { user, error } = result;
       if (error) {
         return { error };
       }
