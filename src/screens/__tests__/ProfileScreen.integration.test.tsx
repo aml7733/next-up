@@ -147,10 +147,14 @@ describe('ProfileScreen Integration Tests', () => {
 
     const { getByTestId, queryByTestId } = render(<ProfileScreen />);
     
-    // Should show email element but no username element
+    // Should show email element and username element (with "Anonymous")
     expect(getByTestId('authenticated-profile-card')).toBeTruthy();
     expect(getByTestId('user-email')).toBeTruthy();
-    expect(queryByTestId('user-username')).toBeFalsy(); // Should not render username element
+    expect(getByTestId('user-username')).toBeTruthy(); // Should render with "Anonymous"
+    
+    // Verify the username shows "Anonymous" when not provided
+    const usernameElement = getByTestId('user-username');
+    expect(usernameElement.props.children).toBe('Anonymous');
     
     // Verify store state
     const storeState = useAuthStore.getState();

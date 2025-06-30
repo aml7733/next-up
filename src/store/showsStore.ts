@@ -96,35 +96,15 @@ export const useShowsStore = create<ShowsState>((set, get) => ({
   },
   
   updateShowStatus: async (userId: string, showId: number, status: WatchStatus) => {
-    try {
-      // TODO: Add updateUserShowStatus method to database
-      console.log('Updating show status:', { userId, showId, status });
-      
-      // Update local state optimistically
-      const userShows = get().userShows.map(userShow => 
-        userShow.show_id === showId 
-          ? { ...userShow, status }
-          : userShow
-      );
-      set({ userShows });
-    } catch (error) {
-      console.error('Failed to update show status:', error);
-      set({ error: 'Failed to update status' });
-    }
+    // TODO: Implement updateUserShow method in database service
+    console.log('TODO: Update show status:', { userId, showId, status });
+    set({ error: 'Feature not implemented yet' });
   },
   
   removeShow: async (userId: string, showId: number) => {
-    try {
-      // TODO: Add removeUserShow method to database
-      console.log('Removing show:', { userId, showId });
-      
-      // Update local state optimistically
-      const userShows = get().userShows.filter(userShow => userShow.show_id !== showId);
-      set({ userShows });
-    } catch (error) {
-      console.error('Failed to remove show:', error);
-      set({ error: 'Failed to remove show' });
-    }
+    // TODO: Implement deleteUserShow method in database service
+    console.log('TODO: Remove show:', { userId, showId });
+    set({ error: 'Feature not implemented yet' });
   },
   
   searchShows: async (query: string) => {

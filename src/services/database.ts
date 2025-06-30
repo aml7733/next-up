@@ -12,7 +12,6 @@ class LocalDatabase {
     try {
       this.db = await SQLite.openDatabaseAsync(DB_NAME);
       await this.createTables();
-      console.log('Database initialized successfully');
     } catch (error) {
       console.error('Database initialization failed:', error);
       throw error;
@@ -102,8 +101,6 @@ class LocalDatabase {
         UNIQUE(user_id, show_id, season_number, episode_number)
       );
     `);
-
-    console.log('Database tables created successfully');
   }
 
   // User operations
@@ -117,13 +114,15 @@ class LocalDatabase {
       [id, username, email || '']
     );
 
-    return {
+    const user = {
       id,
       username,
       email: email || '',
       created_at: new Date().toISOString(),
       preferences: {}
     };
+    
+    return user;
   }
 
   async getUser(id: string): Promise<User | null> {
@@ -261,7 +260,7 @@ class LocalDatabase {
     const results = await this.db.getAllAsync(`
       SELECT us.*, s.title, s.poster_path, s.tmdb_id
       FROM user_shows us
-      JOIN shows s ON us.show_id = s.id
+      JOIN shows s ON us.show_id = s.tmdb_id
       WHERE us.user_id = ?
       ORDER BY us.updated_at DESC
     `, [userId]) as any[];

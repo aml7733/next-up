@@ -57,7 +57,7 @@ describe('ProfileScreen', () => {
     
     expect(getByText('Profile')).toBeTruthy();
     expect(getByText('test@example.com')).toBeTruthy();
-    expect(getByText('@testuser')).toBeTruthy();
+    expect(getByText('testuser')).toBeTruthy();
     expect(getByText('Sign Out')).toBeTruthy();
   });
 

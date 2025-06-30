@@ -27,9 +27,9 @@ describe('CurrentlyWatchingScreen', () => {
   it('renders status chips', () => {
     const { getByText } = renderWithTheme(<CurrentlyWatchingScreen />);
     
-    expect(getByText('Watching')).toBeTruthy();
-    expect(getByText('Completed')).toBeTruthy();
-    expect(getByText('Paused')).toBeTruthy();
+    expect(getByText('Watching (0)')).toBeTruthy();
+    expect(getByText('Completed (0)')).toBeTruthy();
+    expect(getByText('Paused (0)')).toBeTruthy();
   });
 
   it('has correct accessibility properties', () => {

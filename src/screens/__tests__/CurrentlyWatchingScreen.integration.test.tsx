@@ -22,6 +22,10 @@ describe('CurrentlyWatchingScreen Integration Tests', () => {
         isLoading: false,
       });
     });
+
+    // Mock database to return empty array for getUserShows
+    const mockLocalDB = require('../../services/database').localDB;
+    mockLocalDB.getUserShows.mockResolvedValue([]);
   });
 
   it('displays placeholder content when user is unauthenticated', () => {
@@ -41,7 +45,7 @@ describe('CurrentlyWatchingScreen Integration Tests', () => {
     expect(authState.isAuthenticated).toBe(false);
   });
 
-  it('displays placeholder content when user is authenticated but has no shows', () => {
+  it('displays placeholder content when user is authenticated but has no shows', async () => {
     // Set up authenticated user with no shows
     act(() => {
       useAuthStore.setState({
@@ -57,6 +61,12 @@ describe('CurrentlyWatchingScreen Integration Tests', () => {
     });
 
     const screen = render(<CurrentlyWatchingScreen />);
+    
+    // Wait for async loading to complete
+    await act(async () => {
+      // Give time for useEffect and async calls to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
     
     // Get the scroll view container first
     const scrollView = screen.getByTestId('currently-watching-scroll');
@@ -114,8 +124,12 @@ describe('CurrentlyWatchingScreen Integration Tests', () => {
     expect(showsState.isLoading).toBe(true);
   });
 
-  it('handles error state integration', () => {
-    // Set up error state
+  it('handles error state integration', async () => {
+    // Mock database to reject with error
+    const mockLocalDB = require('../../services/database').localDB;
+    mockLocalDB.getUserShows.mockRejectedValue(new Error('Database error'));
+
+    // Set up authenticated user
     act(() => {
       useAuthStore.setState({
         user: {
@@ -127,14 +141,14 @@ describe('CurrentlyWatchingScreen Integration Tests', () => {
         isAuthenticated: true,
         isLoading: false,
       });
-      useShowsStore.setState({
-        userShows: [],
-        isLoading: false,
-        error: 'Failed to load shows',
-      });
     });
 
     const screen = render(<CurrentlyWatchingScreen />);
+    
+    // Wait for async error to occur
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
     
     // Screen should handle error state gracefully
     const scrollView = screen.getByTestId('currently-watching-scroll');

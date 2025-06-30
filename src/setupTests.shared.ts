@@ -63,11 +63,14 @@ import '@testing-library/jest-native/extend-expect';
 // Suppress noisy console warnings in tests
 const originalConsoleWarn = console.warn;
 console.warn = (...args) => {
-  if (typeof args[0] === 'string' && (
-    args[0].includes('react-test-renderer is deprecated') ||
-    args[0].includes('Tried to use the icon') ||
-    args[0].includes('none of the required icon libraries are installed')
-  )) {
+  const message = args[0]?.toString() || '';
+  
+  if (message.includes('react-test-renderer is deprecated') ||
+      message.includes('Tried to use the icon') ||
+      message.includes('none of the required icon libraries are installed') ||
+      message.includes('An error occurred in the') ||
+      message.includes('Consider adding an error boundary') ||
+      message.includes('error boundary to your tree to customize error handling')) {
     return;
   }
   originalConsoleWarn(...args);
@@ -96,6 +99,7 @@ jest.mock('./services/database', () => ({
     deleteUserShow: jest.fn(),
     getUserShowByShowId: jest.fn(),
     addShow: jest.fn(),
+    cacheShow: jest.fn(),
     getShow: jest.fn(),
     searchShows: jest.fn(),
     updateShow: jest.fn(),
@@ -138,6 +142,20 @@ jest.mock('./services/database', () => ({
     getUserShow: jest.fn(),
     updateUserShow: jest.fn(),
     deleteUserShow: jest.fn(),
+    cacheShow: jest.fn(),
+    getShow: jest.fn(),
+  },
+}));
+
+// Mock localAuth service
+jest.mock('./services/localAuth', () => ({
+  localAuth: {
+    init: jest.fn(),
+    signIn: jest.fn(),
+    signUp: jest.fn(),
+    signOut: jest.fn(),
+    isAuthenticated: jest.fn(),
+    getCurrentUser: jest.fn(),
   },
 }));
 
