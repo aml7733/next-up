@@ -64,7 +64,8 @@ class LocalDatabase {
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id),
-        FOREIGN KEY (show_id) REFERENCES shows (id)
+        FOREIGN KEY (show_id) REFERENCES shows (tmdb_id),
+        UNIQUE(user_id, show_id)
       );
     `);
 
@@ -299,6 +300,16 @@ class LocalDatabase {
       SET current_season = ?, current_episode = ?, updated_at = CURRENT_TIMESTAMP
       WHERE user_id = ? AND show_id = ?
     `, [season, episode, userId, showId]);
+  }
+
+  async updateUserShowStatus(userId: string, showId: number, status: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    await this.db.runAsync(`
+      UPDATE user_shows 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND show_id = ?
+    `, [status, userId, showId]);
   }
 
   // Data export/import for backup

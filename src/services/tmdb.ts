@@ -6,7 +6,13 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 
 class TMDBService {
   private async fetchFromTMDB(endpoint: string): Promise<any> {
-    const url = `${TMDB_BASE_URL}${endpoint}?api_key=${TMDB_API_KEY}`;
+    if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY') {
+      throw new Error('TMDB API key not configured. Please set EXPO_PUBLIC_TMDB_API_KEY in your .env file.');
+    }
+
+    // Check if endpoint already has query parameters
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const url = `${TMDB_BASE_URL}${endpoint}${separator}api_key=${TMDB_API_KEY}`;
     
     try {
       const response = await fetch(url);
@@ -22,21 +28,26 @@ class TMDBService {
 
   // Search for TV shows
   async searchShows(query: string, page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
-    const endpoint = `/search/tv`;
-    const url = `${TMDB_BASE_URL}${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=${page}`;
-    
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    return {
-      results: data.results.map(this.transformShow),
-      total_pages: data.total_pages,
-    };
+    if (!query.trim()) {
+      return { results: [], total_pages: 0 };
+    }
+
+    try {
+      const data = await this.fetchFromTMDB(`/search/tv?query=${encodeURIComponent(query.trim())}&page=${page}`);
+      
+      return {
+        results: data.results.map(this.transformShow),
+        total_pages: data.total_pages,
+      };
+    } catch (error) {
+      console.error('TMDB search error:', error);
+      throw error;
+    }
   }
 
   // Get popular TV shows
   async getPopularShows(page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
-    const data = await this.fetchFromTMDB(`/tv/popular&page=${page}`);
+    const data = await this.fetchFromTMDB(`/tv/popular?page=${page}`);
     return {
       results: data.results.map(this.transformShow),
       total_pages: data.total_pages,

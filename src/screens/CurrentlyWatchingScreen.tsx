@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { Text, Card, Chip, useTheme } from 'react-native-paper';
+import { Text, Card, Chip, useTheme, Button } from 'react-native-paper';
 import { useAuthStore } from '../store/authStore';
 import { useShowsStore } from '../store/showsStore';
 
 export default function CurrentlyWatchingScreen() {
   const theme = useTheme();
   const { user } = useAuthStore();
-  const { userShows, isLoading, loadUserShows } = useShowsStore();
+  const { userShows, isLoading, loadUserShows, updateShowStatus } = useShowsStore();
 
   useEffect(() => {
     // Load user shows when component mounts and user is available
@@ -16,9 +16,20 @@ export default function CurrentlyWatchingScreen() {
     }
   }, [user?.id, loadUserShows]);
 
+  const handleStatusUpdate = async (showId: number, newStatus: string) => {
+    if (user?.id) {
+      try {
+        await updateShowStatus(user.id, showId, newStatus as any);
+      } catch (error) {
+        console.error('Failed to update show status:', error);
+      }
+    }
+  };
+
   const watchingShows = userShows.filter(show => show.status === 'watching');
   const completedShows = userShows.filter(show => show.status === 'completed');
   const pausedShows = userShows.filter(show => show.status === 'paused');
+  const wantToWatchShows = userShows.filter(show => show.status === 'want_to_watch');
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -65,6 +76,33 @@ export default function CurrentlyWatchingScreen() {
                 </Card.Content>
               </Card>
             )}
+
+            {/* Show want_to_watch shows */}
+            {userShows.filter(show => show.status === 'want_to_watch').length > 0 && (
+              <Card style={styles.showCard}>
+                <Card.Content>
+                  <Text variant="titleMedium" style={styles.sectionTitle}>Want to Watch ({userShows.filter(show => show.status === 'want_to_watch').length})</Text>
+                  {userShows.filter(show => show.status === 'want_to_watch').map(userShow => (
+                    <View key={userShow.id} style={styles.showItemWithAction}>
+                      <View style={styles.showInfo}>
+                        <Text variant="bodyLarge">{userShow.show?.title || 'Unknown Show'}</Text>
+                        <Text variant="bodySmall" style={styles.progressText}>
+                          Added {new Date(userShow.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <Button 
+                        mode="contained" 
+                        compact 
+                        onPress={() => handleStatusUpdate(userShow.show_id, 'watching')}
+                        style={styles.actionButton}
+                      >
+                        Start Watching
+                      </Button>
+                    </View>
+                  ))}
+                </Card.Content>
+              </Card>
+            )}
             
             {completedShows.length > 0 && (
               <Card style={styles.showCard}>
@@ -83,12 +121,31 @@ export default function CurrentlyWatchingScreen() {
                 </Card.Content>
               </Card>
             )}
+
+            {pausedShows.length > 0 && (
+              <Card style={styles.showCard}>
+                <Card.Content>
+                  <Text variant="titleMedium" style={styles.sectionTitle}>Paused ({pausedShows.length})</Text>
+                  {pausedShows.map(userShow => (
+                    <View key={userShow.id} style={styles.showItem}>
+                      <Text variant="bodyLarge">{userShow.show?.title || 'Unknown Show'}</Text>
+                      <Text variant="bodySmall" style={styles.progressText}>
+                        S{userShow.current_season}E{userShow.current_episode}
+                      </Text>
+                    </View>
+                  ))}
+                </Card.Content>
+              </Card>
+            )}
           </>
         )}
 
         <View style={styles.statusRow} testID="status-chips">
           <Chip mode="outlined" style={styles.statusChip} testID="watching-chip">
             Watching ({watchingShows.length})
+          </Chip>
+          <Chip mode="outlined" style={styles.statusChip} testID="want-to-watch-chip">
+            Want to Watch ({wantToWatchShows.length})
           </Chip>
           <Chip mode="outlined" style={styles.statusChip} testID="completed-chip">
             Completed ({completedShows.length})
@@ -134,6 +191,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  showItemWithAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  showInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  actionButton: {
+    minWidth: 120,
   },
   progressText: {
     opacity: 0.7,

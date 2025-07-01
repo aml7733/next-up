@@ -58,21 +58,18 @@ export const useShowsStore = create<ShowsState>((set, get) => ({
       // First, cache the show in local database
       await localDB.cacheShow(show);
       
-      // Get the cached show to get the local ID
-      const cachedShow = await localDB.getShow(show.tmdb_id);
-      if (!cachedShow) throw new Error('Failed to cache show');
+      // Add to user's shows using tmdb_id as the show identifier
+      await localDB.addUserShow(userId, show.tmdb_id, status);
       
-      // Add to user's shows
-      const userShow = await localDB.addUserShow(userId, cachedShow.id, status);
+      // Reload user shows from database to ensure consistency
+      const userShows = await localDB.getUserShows(userId);
+      set({ userShows });
       
-      // Update state
-      const currentUserShows = get().userShows;
-      set({ 
-        userShows: [...currentUserShows, { ...userShow, show: cachedShow }] 
-      });
+      console.log('Show added successfully:', show.title);
     } catch (error) {
       console.error('Failed to add show:', error);
       set({ error: 'Failed to add show' });
+      throw error; // Re-throw so the UI can handle it
     } finally {
       set({ isLoading: false });
     }
@@ -96,9 +93,22 @@ export const useShowsStore = create<ShowsState>((set, get) => ({
   },
   
   updateShowStatus: async (userId: string, showId: number, status: WatchStatus) => {
-    // TODO: Implement updateUserShow method in database service
-    console.log('TODO: Update show status:', { userId, showId, status });
-    set({ error: 'Feature not implemented yet' });
+    try {
+      await localDB.updateUserShowStatus(userId, showId, status);
+      
+      // Update local state
+      const userShows = get().userShows.map(userShow => 
+        userShow.show_id === showId 
+          ? { ...userShow, status }
+          : userShow
+      );
+      set({ userShows });
+      
+      console.log('Show status updated successfully:', { showId, status });
+    } catch (error) {
+      console.error('Failed to update show status:', error);
+      set({ error: 'Failed to update show status' });
+    }
   },
   
   removeShow: async (userId: string, showId: number) => {
