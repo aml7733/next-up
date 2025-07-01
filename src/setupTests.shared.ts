@@ -26,6 +26,16 @@ jest.mock('react-native/src/private/specs_DEPRECATED/components/RCTSafeAreaViewN
   default: jest.fn(),
 }));
 
+// Mock expo modules
+jest.mock('expo-image', () => {
+  const React = require('react');
+  return {
+    Image: React.forwardRef((props: any, ref: any) => 
+      React.createElement('Image', { ...props, ref, testID: props.testID })
+    ),
+  };
+});
+
 // Mock @expo/vector-icons to avoid ES module dependency chain
 jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => {
   const React = require('react');
@@ -78,9 +88,14 @@ console.warn = (...args) => {
 
 // Mock external APIs that should be mocked in all test types
 jest.mock('./services/tmdb', () => ({
-  searchShows: jest.fn(),
-  getShowDetails: jest.fn(),
-  getTrendingShows: jest.fn(),
+  tmdbService: {
+    searchShows: jest.fn().mockResolvedValue({ results: [], total_pages: 0 }),
+    getShowDetails: jest.fn().mockResolvedValue({}),
+    getPopularShows: jest.fn().mockResolvedValue({ results: [], total_pages: 0 }),
+    getTrendingShows: jest.fn().mockResolvedValue({ results: [], total_pages: 0 }),
+    getSeasonEpisodes: jest.fn().mockResolvedValue([]),
+    getImageUrl: jest.fn().mockReturnValue('https://example.com/image.jpg'),
+  },
 }));
 
 // Mock the local database
@@ -118,6 +133,20 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   multiSet: jest.fn(),
   multiRemove: jest.fn(),
 }));
+
+// Mock React Query
+jest.mock('@tanstack/react-query', () => {
+  const actual = jest.requireActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQuery: jest.fn(() => ({
+      data: null,
+      isLoading: false,
+      error: null,
+      isError: false,
+    })),
+  };
+});
 
 // Mock Expo SQLite
 jest.mock('expo-sqlite', () => ({
