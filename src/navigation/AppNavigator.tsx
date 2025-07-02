@@ -6,6 +6,7 @@ import { useTheme } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { RootStackParamList, MainTabParamList } from '../types';
+import { useAuthStore } from '../store/authStore';
 
 // Import screens
 import {
@@ -14,6 +15,7 @@ import {
   ProfileScreen,
   ShowDetailsScreen,
 } from '../screens';
+import AuthScreen from '../screens/AuthScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -76,6 +78,7 @@ function MainTabs() {
 
 export default function AppNavigator() {
   const theme = useTheme();
+  const { isAuthenticated } = useAuthStore();
 
   return (
     <NavigationContainer>
@@ -87,16 +90,28 @@ export default function AppNavigator() {
           headerTintColor: theme.colors.onSurface,
         }}
       >
-        <Stack.Screen 
-          name="MainTabs" 
-          component={MainTabs} 
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen 
-          name="ShowDetails" 
-          component={ShowDetailsScreen}
-          options={{ title: 'Show Details' }}
-        />
+        {!isAuthenticated ? (
+          // Auth Stack
+          <Stack.Screen 
+            name="Auth" 
+            component={AuthScreen} 
+            options={{ headerShown: false }}
+          />
+        ) : (
+          // Main App Stack
+          <>
+            <Stack.Screen 
+              name="MainTabs" 
+              component={MainTabs} 
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="ShowDetails" 
+              component={ShowDetailsScreen}
+              options={{ title: 'Show Details' }}
+            />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

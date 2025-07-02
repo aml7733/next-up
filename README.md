@@ -19,7 +19,8 @@ A React Native app built with Expo for tracking your favorite TV shows. Keep tra
 - **React Navigation** - Navigation between screens
 - **Zustand** - Lightweight state management
 - **React Query** - Server state management and caching
-- **Supabase** - Backend as a Service (auth, database)
+- **SQLite** - Local database storage
+- **AsyncStorage** - Local user authentication
 - **TMDB API** - Movie and TV show data
 
 ## Getting Started
@@ -50,8 +51,6 @@ A React Native app built with Expo for tracking your favorite TV shows. Keep tra
    ```
    
    Fill in your environment variables in `.env`:
-   - `EXPO_PUBLIC_SUPABASE_URL` - Your Supabase project URL
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
    - `EXPO_PUBLIC_TMDB_API_KEY` - Your TMDB API key
 
 4. **Start the development server**
@@ -85,7 +84,7 @@ src/
 ├── components/          # Reusable UI components
 ├── screens/            # Screen components
 ├── navigation/         # Navigation configuration
-├── services/          # External API services (Supabase, TMDB)
+├── services/          # External API services (Database, TMDB)
 ├── store/             # Zustand state management
 ├── types/             # TypeScript type definitions
 ├── utils/             # Utility functions

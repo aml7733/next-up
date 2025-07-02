@@ -1,273 +1,73 @@
-import '@testing-library/jest-native/extend-expect';
+// Import shared setup first
+import './setupTests.shared';
 
-// Suppress react-test-renderer deprecation warnings
-const originalError = console.error;
-beforeAll(() => {
-  console.error = (...args: any[]) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes('react-test-renderer is deprecated')
-    ) {
-      return;
-    }
-    originalError.call(console, ...args);
-  };
-});
+/**
+ * INTEGRATION TEST WARNING SUPPRESSION STRATEGY
+ * 
+ * Integration tests are designed to test real component interactions and navigation flows,
+ * which means they use actual Zustand stores and async operations. This creates expected
+ * warnings that don't indicate actual problems:
+ * 
+ * 1. REACT ACT() WARNINGS:
+ *    - Zustand stores update component state asynchronously
+ *    - These updates happen outside React's render cycle during tests
+ *    - React Testing Library can't automatically wrap these in act()
+ *    - Suppressing these warnings keeps output clean while preserving test integrity
+ * 
+ * 2. ERROR SCENARIO LOGS:
+ *    - Tests that verify error handling intentionally trigger errors
+ *    - These error messages are expected output, not test failures
+ *    - Suppressing them prevents confusion while maintaining error handling verification
+ * 
+ * 3. PHILOSOPHY:
+ *    - Integration tests should test real behavior, not mocked behavior
+ *    - Warning suppression allows us to test realistic scenarios without noise
+ *    - Only expected warnings are suppressed; unexpected errors still appear
+ *    - This approach maintains test value while providing clean CI output
+ */
 
-afterAll(() => {
-  console.error = originalError;
-});
+// Integration test specific setup - minimal additional mocking
+// Integration tests use real navigation and more realistic component behavior
 
-// Define global variables needed by React Native/Expo
-(global as any).__DEV__ = true;
-
-// Add missing globals for react-native-web
-(global as any).process = process;
-(global as any).process.env = { ...process.env, EXPO_OS: 'web' };
-
-// Minimal setup for integration tests - only mock what we absolutely must
-
-// Mock React Native Platform (simpler approach)
-jest.mock('react-native', () => {
-  const RN = jest.requireActual('react-native');
-  const React = require('react');
+// Suppress act() warnings for integration tests
+// These warnings are expected when testing real async Zustand store behavior
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  const message = args[0]?.toString() || '';
   
-  return {
-    ...RN,
-    Platform: {
-      OS: 'web',
-      select: (obj: any) => obj.web || obj.default || obj.android || obj.ios,
-    },
-    // Mock native component utilities that don't exist in Jest
-    requireNativeComponent: jest.fn(() => 'View'),
-    
-    // Mock React Native components to preserve testIDs and structure
-    View: ({ children, style, testID, ...props }: any) => 
-      React.createElement('div', { 
-        ...props, 
-        style, 
-        testID,
-        'data-component': 'view'
-      }, children),
-    
-    ScrollView: ({ children, style, testID, contentContainerStyle, ...props }: any) => 
-      React.createElement('div', { 
-        ...props, 
-        style: { ...style, ...contentContainerStyle }, 
-        testID,
-        'data-component': 'scrollview'
-      }, children),
-    
-    Text: ({ children, style, ...props }: any) => 
-      React.createElement('span', { 
-        ...props, 
-        style,
-        'data-component': 'text'
-      }, children),
-  };
-});
-
-// Mock react-native-safe-area-context
-jest.mock('react-native-safe-area-context', () => ({
-  SafeAreaProvider: ({ children }: any) => children,
-  SafeAreaView: ({ children }: any) => children,
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
-  useSafeAreaFrame: () => ({ x: 0, y: 0, width: 0, height: 0 }),
-}));
-
-// Mock expo modules that don't work in test environment
-jest.mock('expo-constants', () => ({
-  default: {
-    expoConfig: {
-      extra: {},
-    },
-  },
-}));
-
-jest.mock('expo-image', () => ({
-  Image: 'Image',
-}));
-
-jest.mock('expo-modules-core', () => ({
-  NativeModule: jest.fn(),
-  Platform: {
-    OS: 'web',
-    select: (obj: any) => obj.web || obj.default,
-  },
-}));
-
-// Mock @expo/vector-icons completely
-jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => 'MaterialCommunityIcons');
-jest.mock('@expo/vector-icons', () => ({
-  MaterialCommunityIcons: 'MaterialCommunityIcons',
-  MaterialIcons: 'MaterialIcons',
-  FontAwesome: 'FontAwesome',
-  Feather: 'Feather',
-  Ionicons: 'Ionicons',
-}));
-
-// Mock navigation (required for React Navigation)
-jest.mock('@react-navigation/native', () => {
-  const actualNav = jest.requireActual('@react-navigation/native');
-  return {
-    ...actualNav,
-    useNavigation: () => ({
-      navigate: jest.fn(),
-      dispatch: jest.fn(),
-    }),
-    useRoute: () => ({
-      params: {},
-    }),
-    NavigationContainer: ({ children }: any) => children,
-  };
-});
-
-// Mock bottom tab navigator for integration tests
-jest.mock('@react-navigation/bottom-tabs', () => ({
-  createBottomTabNavigator: () => ({
-    Navigator: ({ children }: any) => children,
-    Screen: ({ children }: any) => children,
-  }),
-}));
-
-// Mock native stack navigator for integration tests
-jest.mock('@react-navigation/native-stack', () => ({
-  createNativeStackNavigator: () => ({
-    Navigator: ({ children }: any) => children,
-    Screen: ({ children }: any) => children,
-  }),
-}));
-
-// Mock services (external APIs should be mocked)
-jest.mock('./services/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithEmailAndPassword: jest.fn(),
-      signUp: jest.fn(),
-      signOut: jest.fn(),
-      getUser: jest.fn(),
-    },
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-    })),
-  },
-}));
-
-jest.mock('./services/tmdb', () => ({
-  searchShows: jest.fn(),
-  getShowDetails: jest.fn(),
-}));
-
-// Mock react-native-paper with integration-friendly components
-// These are more realistic than unit test mocks but still testable
-jest.mock('react-native-paper', () => {
-  const React = require('react');
+  // Suppress specific act() warnings that are expected in integration tests
+  // WHY WE SUPPRESS THESE:
+  // 1. Zustand stores perform async operations that update component state
+  // 2. These async updates happen after the test's await calls but before the test completes
+  // 3. React Testing Library's act() can't wrap these Zustand state updates automatically
+  // 4. These warnings don't indicate actual problems - they're expected in integration tests
+  // 5. The alternative would be to mock everything, defeating the purpose of integration tests
+  if (message.includes('An update to') && message.includes('inside a test was not wrapped in act')) {
+    return;
+  }
   
-  return {
-    // Text component that directly exposes text content for getByText queries
-    Text: ({ children, variant, style, testID, ...props }: any) => {
-      // Use a span element that React Testing Library can easily find
-      return React.createElement('span', { 
-        ...props, 
-        testID,
-        'data-variant': variant, 
-        style,
-      }, children);
-    },
-    
-    Button: ({ children, mode, onPress, style, ...props }: any) => 
-      React.createElement(
-        'button', 
-        { 
-          ...props, 
-          onClick: onPress, 
-          'data-mode': mode,
-          style,
-          role: 'button',
-          'data-testid': 'paper-button'
-        }, 
-        children
-      ),
-    
-    Card: Object.assign(
-      ({ children, style, ...props }: any) => 
-        React.createElement('div', { 
-          ...props, 
-          'data-component': 'card', 
-          style,
-          'data-testid': 'paper-card'
-        }, children),
-      {
-        Content: ({ children, style, ...props }: any) => 
-          React.createElement('div', { 
-            ...props, 
-            'data-component': 'card-content', 
-            style,
-            'data-testid': 'paper-card-content'
-          }, children),
-      }
-    ),
-    
-    Avatar: {
-      Text: ({ label, size, style, ...props }: any) => 
-        React.createElement('span', { 
-          ...props, 
-          'data-component': 'avatar-text', 
-          'data-size': size,
-          style,
-          'data-testid': 'paper-avatar-text',
-          'data-label': label
-        }, label),
-    },
-    
-    Divider: ({ style, ...props }: any) => 
-      React.createElement('hr', { 
-        ...props, 
-        'data-component': 'divider', 
-        style,
-        'data-testid': 'paper-divider'
-      }),
-    
-    Searchbar: ({ placeholder, value, onChangeText, onSubmitEditing, style, testID, ...props }: any) => 
-      React.createElement('input', { 
-        ...props, 
-        placeholder,
-        value,
-        testID,
-        onChange: (e: any) => onChangeText && onChangeText(e.target.value),
-        onKeyPress: (e: any) => {
-          if (e.key === 'Enter' && onSubmitEditing) {
-            onSubmitEditing();
-          }
-        },
-        style,
-        'data-component': 'searchbar'
-      }),
-    
-    Chip: ({ children, mode, style, testID, ...props }: any) => 
-      React.createElement('span', { 
-        ...props, 
-        testID,
-        'data-mode': mode,
-        style,
-      }, children),
-    
-    useTheme: () => ({
-      colors: {
-        background: '#ffffff',
-        surface: '#ffffff',
-        primary: '#6200ea',
-        text: '#000000',
-        onSurfaceVariant: '#666666',
-        onSurface: '#333333',
-        outline: '#cccccc',
-      },
-    }),
-    
-    PaperProvider: ({ children }: any) => children,
-  };
-});
+  // Suppress expected error messages from error test scenarios
+  // WHY WE SUPPRESS THESE:
+  // 1. These are intentional error messages from tests that verify error handling
+  // 2. They appear in tests like "handles database errors" where we simulate failures
+  // 3. The errors are expected behavior, not actual test failures
+  // 4. Suppressing them keeps test output clean while preserving error handling verification
+  if (message.includes('Failed to load user shows: Error: Database error') ||
+      message.includes('Failed to load user shows') ||
+      message.includes('Database error')) {
+    return;
+  }
+  
+  // Allow all other console.error messages
+  // Any unexpected errors will still be shown, helping identify real issues
+  originalConsoleError(...args);
+};
+
+// No additional mocks needed for integration tests
+// The shared setup already handles:
+// - React Native internal components that cause ES module issues
+// - @expo/vector-icons mocking
+// - External API mocking (TMDB)
+// - Console warning suppression
+
+// Integration tests intentionally use real navigation to test navigation flows

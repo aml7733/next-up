@@ -10,6 +10,13 @@ describe('authStore', () => {
       isAuthenticated: false,
       isLoading: false,
     });
+
+    // Reset mocks
+    const mockLocalAuth = require('../../services/localAuth').localAuth;
+    jest.clearAllMocks();
+    mockLocalAuth.signIn.mockResolvedValue({ user: null, error: 'Not implemented' });
+    mockLocalAuth.signUp.mockResolvedValue({ user: null, error: 'Not implemented' });
+    mockLocalAuth.signOut.mockResolvedValue({ error: null });
   });
 
   it('has correct initial state', () => {
@@ -64,29 +71,49 @@ describe('authStore', () => {
   it('handles sign in action', async () => {
     const { result } = renderHook(() => useAuthStore());
     
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-
-    await act(async () => {
-      await result.current.signIn('test@example.com', 'password');
+    // Mock the localAuth service to return success
+    const mockLocalAuth = require('../../services/localAuth').localAuth;
+    mockLocalAuth.signIn.mockResolvedValue({ 
+      user: { id: '1', username: 'testuser', email: 'test@example.com', created_at: '2023-01-01' }, 
+      error: null 
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith('Sign in:', 'test@example.com');
-    
-    consoleSpy.mockRestore();
+    await act(async () => {
+      await result.current.signIn('testuser');
+    });
+
+    expect(mockLocalAuth.signIn).toHaveBeenCalledWith('testuser');
+    expect(result.current.user).toEqual({ 
+      id: '1', 
+      username: 'testuser', 
+      email: 'test@example.com', 
+      created_at: '2023-01-01' 
+    });
+    expect(result.current.isAuthenticated).toBe(true);
   });
 
   it('handles sign up action', async () => {
     const { result } = renderHook(() => useAuthStore());
     
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-
-    await act(async () => {
-      await result.current.signUp('test@example.com', 'password');
+    // Mock the localAuth service to return success
+    const mockLocalAuth = require('../../services/localAuth').localAuth;
+    mockLocalAuth.signUp.mockResolvedValue({ 
+      user: { id: '2', username: 'newuser', email: 'new@example.com', created_at: '2023-01-01' }, 
+      error: null 
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith('Sign up:', 'test@example.com');
-    
-    consoleSpy.mockRestore();
+    await act(async () => {
+      await result.current.signUp('newuser', 'new@example.com');
+    });
+
+    expect(mockLocalAuth.signUp).toHaveBeenCalledWith('newuser', 'new@example.com');
+    expect(result.current.user).toEqual({ 
+      id: '2', 
+      username: 'newuser', 
+      email: 'new@example.com', 
+      created_at: '2023-01-01' 
+    });
+    expect(result.current.isAuthenticated).toBe(true);
   });
 
   it('handles sign out action', async () => {
@@ -121,7 +148,7 @@ describe('authStore', () => {
 
     // Start sign in (but don't await it immediately)
     const signInPromise = act(async () => {
-      await result.current.signIn('test@example.com', 'password');
+      await result.current.signIn('testuser');
     });
 
     // Check that loading is handled correctly

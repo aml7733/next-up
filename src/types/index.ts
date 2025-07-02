@@ -33,9 +33,10 @@ export interface UserShow {
   notes?: string;
   created_at: string;
   updated_at: string;
+  show?: Show; // Optional show details for convenience
 }
 
-export type WatchStatus = 'watching' | 'completed' | 'paused' | 'dropped' | 'plan-to-watch';
+export type WatchStatus = 'watching' | 'completed' | 'paused' | 'dropped' | 'want_to_watch';
 
 export interface User {
   id: string;
@@ -43,6 +44,7 @@ export interface User {
   username?: string;
   avatar_url?: string;
   created_at: string;
+  preferences?: Record<string, any>;
 }
 
 export interface Genre {
@@ -52,6 +54,7 @@ export interface Genre {
 
 // Navigation types
 export type RootStackParamList = {
+  Auth: undefined;
   MainTabs: undefined;
   ShowDetails: { showId: number };
   EpisodeDetails: { showId: number; seasonNumber: number; episodeNumber: number };

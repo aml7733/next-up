@@ -27,17 +27,20 @@ export default function ProfileScreen() {
             <Card.Content style={styles.profileContent}>
               <Avatar.Text 
                 size={80} 
-                label={user.email?.charAt(0).toUpperCase() || 'U'} 
+                label={user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'} 
                 style={styles.avatar}
               />
-              <Text variant="titleLarge" style={styles.email} testID="user-email">
-                {user.email}
+              <Text variant="titleLarge" style={styles.username} testID="user-username">
+                {user.username || 'Anonymous'}
               </Text>
-              {user.username && (
-                <Text variant="bodyLarge" style={styles.username} testID="user-username">
-                  @{user.username}
+              {user.email && (
+                <Text variant="bodyLarge" style={styles.email} testID="user-email">
+                  {user.email}
                 </Text>
               )}
+              <Text variant="bodySmall" style={styles.memberSince} testID="member-since">
+                Member since {new Date(user.created_at).toLocaleDateString()}
+              </Text>
             </Card.Content>
           </Card>
         ) : (
@@ -139,9 +142,14 @@ const styles = StyleSheet.create({
   },
   email: {
     marginBottom: 4,
+    opacity: 0.7,
   },
   username: {
-    opacity: 0.7,
+    fontWeight: 'bold',
+  },
+  memberSince: {
+    marginTop: 8,
+    opacity: 0.6,
   },
   placeholderText: {
     marginTop: 8,
