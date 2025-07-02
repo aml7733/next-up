@@ -89,7 +89,7 @@ export default function SearchScreen() {
             title="Search Error"
             description="Failed to search shows. Please check your connection and try again."
             actionText="Retry"
-            onActionPress={() => handleSearch(searchQuery)}
+            onActionPress={() => refetch()}
             testID="search-error"
           />
         );

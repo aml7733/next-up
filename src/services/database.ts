@@ -302,7 +302,7 @@ class LocalDatabase {
     `, [season, episode, userId, showId]);
   }
 
-  async updateUserShowStatus(userId: string, showId: number, status: string): Promise<void> {
+  async updateUserShowStatus(userId: string, showId: number, status: WatchStatus): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
     await this.db.runAsync(`
