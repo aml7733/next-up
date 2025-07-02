@@ -136,9 +136,7 @@ export const useShowsStore = create<ShowsState>((set, get) => ({
       const tmdbResults = await tmdbService.searchShows(query);
       
       // Cache new results
-      for (const show of tmdbResults.results) {
-        await localDB.cacheShow(show);
-      }
+      await Promise.all(tmdbResults.results.map(show => localDB.cacheShow(show)));
       
       set({ searchResults: tmdbResults.results });
     } catch (error) {
