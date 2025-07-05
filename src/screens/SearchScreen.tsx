@@ -55,8 +55,10 @@ export default function SearchScreen() {
   };
 
   const handleShowPress = (show: Show) => {
-    // TODO: Navigate to show details screen
-    console.log('Show pressed:', show.title);
+    // Navigate to show details screen
+    console.log('Navigate to show details:', show.title);
+    // TODO: Add navigation once navigation stack is set up
+    // navigation.navigate('ShowDetails', { showId: show.tmdb_id });
   };
 
   const handleAddToTracking = async (show: Show) => {

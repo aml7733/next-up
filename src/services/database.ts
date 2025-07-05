@@ -302,7 +302,7 @@ class LocalDatabase {
     `, [season, episode, userId, showId]);
   }
 
-  async updateUserShowStatus(userId: string, showId: number, status: string): Promise<void> {
+  async updateUserShowStatus(userId: string, showId: number, status: WatchStatus): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
     await this.db.runAsync(`
@@ -310,6 +310,15 @@ class LocalDatabase {
       SET status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE user_id = ? AND show_id = ?
     `, [status, userId, showId]);
+  }
+
+  async deleteUserShow(userId: string, showId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    await this.db.runAsync(`
+      DELETE FROM user_shows 
+      WHERE user_id = ? AND show_id = ?
+    `, [userId, showId]);
   }
 
   // Data export/import for backup

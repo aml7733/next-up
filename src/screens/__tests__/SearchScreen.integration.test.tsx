@@ -1,167 +1,336 @@
 import React from 'react';
 import { render, fireEvent, waitFor, act, within } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SearchScreen from '../SearchScreen';
 import { useAuthStore } from '../../store/authStore';
 
-// NOTE: Due to React Testing Library's interaction with our react-native-paper mocks,
-// getByText cannot find text content in nested span elements despite them being
-// clearly visible in the DOM. This is a known limitation with deeply nested 
-// component structures. For real integration testing, we focus on:
-// 1. Component renders without crashing ✓
-// 2. Store state integration ✓  
-// 3. User interactions (where possible) ✓
-// 4. State transitions ✓
+// Mock stores
+jest.mock('../../store/authStore');
+jest.mock('../../store/showsStore');
 
-// REAL integration tests - test SearchScreen with API integration and user interactions
-// These tests verify search functionality, API calls, and user workflows
+// Mock services
+jest.mock('../../services/tmdb', () => ({
+  tmdbService: {
+    searchShows: jest.fn(),
+    getPopularShows: jest.fn(),
+  },
+}));
+
+// Mock Alert
+import { Alert } from 'react-native';
+jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+const mockUseAuthStore = useAuthStore as jest.MockedFunction<typeof useAuthStore>;
+
+// Mock show data
+const mockPopularShows = {
+  results: [
+    {
+      id: 1,
+      tmdb_id: 1,
+      title: 'Popular Show 1',
+      overview: 'Overview 1',
+      first_air_date: '2023-01-01',
+      vote_average: 8.5,
+      poster_path: '/poster1.jpg',
+      backdrop_path: '/backdrop1.jpg',
+      genres: [],
+      seasons: [],
+      episode_count: 10,
+      status: 'Ongoing',
+    },
+    {
+      id: 2,
+      tmdb_id: 2,
+      title: 'Popular Show 2',
+      overview: 'Overview 2',
+      first_air_date: '2023-02-01',
+      vote_average: 7.8,
+      poster_path: '/poster2.jpg',
+      backdrop_path: '/backdrop2.jpg',
+      genres: [],
+      seasons: [],
+      episode_count: 20,
+      status: 'Ongoing',
+    },
+  ],
+};
+
+const mockSearchResults = {
+  results: [
+    {
+      id: 3,
+      tmdb_id: 3,
+      title: 'Breaking Bad',
+      overview: 'A high school chemistry teacher...',
+      first_air_date: '2008-01-20',
+      vote_average: 9.3,
+      poster_path: '/poster3.jpg',
+      backdrop_path: '/backdrop3.jpg',
+      genres: [],
+      seasons: [],
+      episode_count: 62,
+      status: 'Ended',
+    },
+  ],
+};
+
+const mockUser = {
+  id: '1',
+  email: 'test@example.com',
+  username: 'testuser',
+  created_at: '2024-01-01',
+};
+
+// Wrapper component with QueryClient
+const TestWrapper = ({ children }: { children: React.ReactNode }) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+};
 
 describe('SearchScreen Integration Tests', () => {
-  // Helper function to set auth state
-  const setAuthState = (user: any = null, isAuthenticated = false) => {
-    act(() => {
-      useAuthStore.setState({
-        user,
-        isAuthenticated,
-        isLoading: false,
-      });
-    });
-  };
+  const { tmdbService } = require('../../services/tmdb');
 
-  // Helper function to verify common UI elements
-  const expectBasicUIElements = (screen: any) => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Reset auth store to unauthenticated state
+    mockUseAuthStore.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signOut: jest.fn(),
+    });
+
+    // Reset shows store
+    const { useShowsStore } = require('../../store/showsStore');
+    useShowsStore.mockReturnValue({
+      userShows: [],
+      isLoading: false,
+      error: null,
+      addShow: jest.fn(),
+      removeShow: jest.fn(),
+      updateShowStatus: jest.fn(),
+      updateShowProgress: jest.fn(),
+      fetchUserShows: jest.fn(),
+    });
+
+    // Mock tmdb service responses
+    tmdbService.getPopularShows.mockResolvedValue(mockPopularShows);
+    tmdbService.searchShows.mockResolvedValue(mockSearchResults);
+  });
+
+  it('renders search interface and loads popular shows', async () => {
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
+    
+    // Should show basic UI elements
     expect(screen.getByTestId('search-input')).toBeTruthy();
     expect(screen.getByTestId('search-scroll')).toBeTruthy();
     expect(screen.getByTestId('discover-title')).toBeTruthy();
-    expect(screen.getByTestId('popular-shows-title')).toBeTruthy();
-  };
-
-  // Helper function to verify initial state UI
-  const expectInitialStateUI = (screen: any) => {
-    expectBasicUIElements(screen);
-    expect(screen.getByTestId('popular-shows-description')).toBeTruthy();
-  };
-
-  beforeEach(() => {
-    setAuthState(); // Reset to unauthenticated state
-  });
-
-  it('renders search interface for unauthenticated users', () => {
-    const screen = render(<SearchScreen />);
-    expectInitialStateUI(screen);
     
-    // Verify store state
-    const authState = useAuthStore.getState();
-    expect(authState.isAuthenticated).toBe(false);
+    // Wait for popular shows to load
+    await waitFor(() => {
+      expect(screen.getByTestId('popular-shows-title')).toBeTruthy();
+    });
+
+    // Should show popular shows
+    expect(screen.getByText('Popular Show 1')).toBeTruthy();
+    expect(screen.getByText('Popular Show 2')).toBeTruthy();
   });
 
-  it('renders search interface for authenticated users', () => {
-    setAuthState({
-      id: '1',
-      email: 'test@example.com',
-      username: 'testuser',
-      created_at: '2024-01-01',
-    }, true);
+  it('renders search interface for authenticated users', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: mockUser,
+      isAuthenticated: true,
+      isLoading: false,
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signOut: jest.fn(),
+    });
 
-    const screen = render(<SearchScreen />);
-    expectBasicUIElements(screen);
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
     
-    // Verify authenticated state
-    const authState = useAuthStore.getState();
-    expect(authState.isAuthenticated).toBe(true);
+    expect(screen.getByTestId('search-input')).toBeTruthy();
+    expect(screen.getByTestId('search-scroll')).toBeTruthy();
+    expect(screen.getByTestId('discover-title')).toBeTruthy();
+    
+    // Wait for popular shows to load
+    await waitFor(() => {
+      expect(screen.getByTestId('popular-shows-title')).toBeTruthy();
+    });
   });
 
-  it('handles search input and displays results state', async () => {
-    const screen = render(<SearchScreen />);
+  it('handles search input and displays results', async () => {
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
     
     const searchInput = screen.getByTestId('search-input');
-    expectInitialStateUI(screen);
+    
+    // Wait for initial load
+    await waitFor(() => {
+      expect(screen.getByTestId('discover-title')).toBeTruthy();
+    });
     
     // Test user typing in search
-    fireEvent.changeText(searchInput, 'Breaking Bad');
+    await act(async () => {
+      fireEvent.changeText(searchInput, 'Breaking Bad');
+    });
     
     // Should update the search query state
     expect(searchInput.props.value).toBe('Breaking Bad');
     
-    // Should show search results state
+    // Wait for search results to load (debounced)
     await waitFor(() => {
       expect(screen.getByTestId('search-results-title')).toBeTruthy();
-      expect(screen.queryByTestId('discover-title')).toBeFalsy(); // Should hide default content
-    });
+    }, { timeout: 3000 });
+
+    // Should show search results and hide discover content
+    expect(screen.getByText('Breaking Bad')).toBeTruthy();
+    expect(screen.queryByTestId('discover-title')).toBeFalsy();
   });
 
-  it('integrates with authentication state for show actions', () => {
-    // Test how search results would behave differently based on auth state
-    
-    // Unauthenticated state
-    const { rerender } = render(<SearchScreen />);
-    
-    let authState = useAuthStore.getState();
-    expect(authState.isAuthenticated).toBe(false);
-    
-    // Authenticated state
-    act(() => {
-      useAuthStore.setState({
-        user: {
-          id: '1',
-          email: 'test@example.com',
-          username: 'testuser',
-          created_at: '2024-01-01',
-        },
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    });
+  it('shows no results when search returns empty', async () => {
+    tmdbService.searchShows.mockResolvedValue({ results: [] });
 
-    rerender(<SearchScreen />);
-    
-    authState = useAuthStore.getState();
-    expect(authState.isAuthenticated).toBe(true);
-    
-    // When authenticated, users should be able to add shows to their list
-    // (This would be tested more thoroughly when the search results component is implemented)
-  });
-
-  it('displays initial state with popular shows placeholder', () => {
-    const screen = render(<SearchScreen />);
-    
-    // Should show default content when no search is performed
-    expect(screen.getByTestId('discover-title')).toBeTruthy();
-    expect(screen.getByTestId('popular-shows-title')).toBeTruthy();
-    expect(screen.getByTestId('popular-shows-description')).toBeTruthy();
-  });
-
-  it('handles search submission and state changes', async () => {
-    const screen = render(<SearchScreen />);
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
     
     const searchInput = screen.getByTestId('search-input');
     
-    // Simulate user search interaction
-    fireEvent.changeText(searchInput, 'Game of Thrones');
-    fireEvent(searchInput, 'submitEditing');
-    
-    // Should show search results state
-    await waitFor(() => {
-      expect(screen.getByTestId('search-results-title')).toBeTruthy();
-      expect(searchInput.props.value).toBe('Game of Thrones');
+    await act(async () => {
+      fireEvent.changeText(searchInput, 'NonexistentShow');
     });
     
-    // In a real implementation, this would:
-    // 1. Trigger TMDB API call
-    // 2. Display loading state
-    // 3. Show search results
-    // 4. Allow user to add shows to their list (if authenticated)
+    await waitFor(() => {
+      expect(screen.getByTestId('search-no-results')).toBeTruthy();
+    }, { timeout: 3000 });
+
+    expect(screen.getByText('No Results')).toBeTruthy();
+    expect(screen.getByText('No shows found for "NonexistentShow". Try a different search term.')).toBeTruthy();
   });
 
-  it('integrates error handling for failed API calls', async () => {
-    // This test would verify how the screen handles API failures
-    const screen = render(<SearchScreen />);
+  it('handles search errors gracefully', async () => {
+    tmdbService.searchShows.mockRejectedValue(new Error('API Error'));
+
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
     
-    expect(screen.getByTestId('discover-title')).toBeTruthy();
+    const searchInput = screen.getByTestId('search-input');
     
-    // In the future, this would test:
-    // 1. API call failure scenarios
-    // 2. Error message display
-    // 3. Retry functionality
-    // 4. Graceful degradation
+    await act(async () => {
+      fireEvent.changeText(searchInput, 'Error Search');
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('search-error')).toBeTruthy();
+    }, { timeout: 3000 });
+
+    expect(screen.getByText('Search Error')).toBeTruthy();
+    expect(screen.getByText('Failed to search shows. Please check your connection and try again.')).toBeTruthy();
+  });
+
+  it('handles popular shows loading error', async () => {
+    tmdbService.getPopularShows.mockRejectedValue(new Error('API Error'));
+
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('popular-error')).toBeTruthy();
+    });
+
+    expect(screen.getByText('Connection Error')).toBeTruthy();
+    expect(screen.getByText('Failed to load popular shows. Please check your connection and try again.')).toBeTruthy();
+  });
+
+  it('shows loading states properly', async () => {
+    // Mock slow loading for popular shows
+    tmdbService.getPopularShows.mockImplementation(
+      () => new Promise(resolve => setTimeout(() => resolve(mockPopularShows), 100))
+    );
+
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
+    
+    // Should show loading state initially
+    expect(screen.getByTestId('popular-loading')).toBeTruthy();
+    
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.queryByTestId('popular-loading')).toBeFalsy();
+      expect(screen.getByTestId('popular-shows-title')).toBeTruthy();
+    });
+  });
+
+  it('clears search when input is cleared', async () => {
+    const screen = render(
+      <TestWrapper>
+        <SearchScreen />
+      </TestWrapper>
+    );
+    
+    const searchInput = screen.getByTestId('search-input');
+    
+    // Wait for initial load
+    await waitFor(() => {
+      expect(screen.getByTestId('discover-title')).toBeTruthy();
+    });
+    
+    // Enter search
+    await act(async () => {
+      fireEvent.changeText(searchInput, 'Breaking Bad');
+    });
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('search-results-title')).toBeTruthy();
+    }, { timeout: 3000 });
+    
+    // Clear search
+    await act(async () => {
+      fireEvent.changeText(searchInput, '');
+    });
+    
+    // Should return to discover state
+    await waitFor(() => {
+      expect(screen.getByTestId('discover-title')).toBeTruthy();
+      expect(screen.queryByTestId('search-results-title')).toBeFalsy();
+    });
   });
 });

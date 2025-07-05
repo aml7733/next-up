@@ -358,5 +358,28 @@ describe('LocalDatabase', () => {
       expect(retrievedShow).toBeTruthy();
       expect(userShows.length).toBeGreaterThan(0);
     });
+
+    it('should delete user show correctly', async () => {
+      // Create user
+      const user = await localDB.createUser('deleteuser', 'delete@example.com');
+      
+      // Cache show
+      const show = createMockShow({tmdb_id: 789});
+      await localDB.cacheShow(show);
+      
+      // Add user show
+      await localDB.addUserShow(user.id, show.tmdb_id, 'watching');
+      
+      // Verify show was added
+      let userShows = await localDB.getUserShows(user.id);
+      expect(userShows.length).toBe(1);
+      
+      // Delete user show
+      await localDB.deleteUserShow(user.id, show.tmdb_id);
+      
+      // Verify show was deleted
+      userShows = await localDB.getUserShows(user.id);
+      expect(userShows.length).toBe(0);
+    });
   });
 });
