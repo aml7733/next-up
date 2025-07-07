@@ -2,15 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Text, Searchbar, Card, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { Show } from '../types';
+import { Show, RootStackParamList } from '../types';
 import { tmdbService } from '../services/tmdb';
 import { useAuthStore } from '../store/authStore';
 import { useShowsStore } from '../store/showsStore';
 import { ShowCard, EmptyState, LoadingState } from '../components';
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 export default function SearchScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<NavigationProp>();
   const { user, isAuthenticated } = useAuthStore();
   const { addShow } = useShowsStore();
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,8 +62,7 @@ export default function SearchScreen() {
   const handleShowPress = (show: Show) => {
     // Navigate to show details screen
     console.log('Navigate to show details:', show.title);
-    // TODO: Add navigation once navigation stack is set up
-    // navigation.navigate('ShowDetails', { showId: show.tmdb_id });
+    navigation.navigate('ShowDetails', { showId: show.tmdb_id });
   };
 
   const handleAddToTracking = async (show: Show) => {

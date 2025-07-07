@@ -13,11 +13,11 @@ import {
 } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, Show, UserShow, WatchStatus } from '../types';
+import { RootStackParamList, Show, UserShow, WatchStatus, Episode } from '../types';
 import { tmdbService } from '../services/tmdb';
 import { useAuthStore } from '../store/authStore';
 import { useShowsStore } from '../store/showsStore';
-import { LoadingState } from '../components';
+import { LoadingState, ProgressSection, UpNextCard } from '../components';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShowDetails'>;
 
@@ -39,6 +39,12 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [userShow, setUserShow] = useState<UserShow | null>(null);
+  
+  // Enhanced episode tracking state
+  const [totalEpisodes, setTotalEpisodes] = useState<number>(0);
+  const [seasonCount, setSeasonCount] = useState<number>(0);
+  const [nextEpisode, setNextEpisode] = useState<any>(null);
+  const [watchedEpisodes, setWatchedEpisodes] = useState<number>(0);
 
   useEffect(() => {
     loadShowDetails();
@@ -52,15 +58,47 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
     }
   }, [userShows, show]);
 
+  useEffect(() => {
+    // Load episode data when user starts tracking or show data is available
+    if (show && userShow) {
+      loadEpisodeData();
+    }
+  }, [show, userShow]);
+
   const loadShowDetails = async () => {
     try {
       const showDetails = await tmdbService.getShowDetails(showId);
       setShow(showDetails);
+      
+      // Load total episode count for progress calculation
+      const { totalEpisodes: total, seasonCount: seasons } = await tmdbService.getTotalEpisodeCount(showId);
+      setTotalEpisodes(total);
+      setSeasonCount(seasons);
     } catch (error) {
       console.error('Error loading show details:', error);
       Alert.alert('Error', 'Failed to load show details');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadEpisodeData = async () => {
+    if (!show || !userShow) return;
+
+    try {
+      // Use proper episode calculation instead of rough estimate
+      const calculatedWatchedEpisodes = await tmdbService.calculateWatchedEpisodes(
+        show.tmdb_id, 
+        userShow.current_season, 
+        userShow.current_episode
+      );
+      setWatchedEpisodes(calculatedWatchedEpisodes);
+
+      // Get next episode to watch
+      const next = await tmdbService.getNextEpisode(show.tmdb_id, userShow.current_season, userShow.current_episode);
+      setNextEpisode(next);
+    } catch (error) {
+      console.error('Error loading episode data:', error);
     }
   };
 
@@ -126,11 +164,25 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   };
 
   const handleProgressUpdate = async (season: number, episode: number) => {
-    if (!user || !show) return;
+    if (!user || !show || !userShow) return;
 
     setIsUpdating(true);
     try {
-      await updateShowProgress(user.id, show.tmdb_id, season, episode);
+      // Check if this would complete the show
+      const isCompleted = await tmdbService.isShowCompleted(show.tmdb_id, season, episode);
+      
+      if (isCompleted) {
+        // If completing the show, update status to completed
+        await updateShowProgress(user.id, show.tmdb_id, season, episode);
+        await updateShowStatus(user.id, show.tmdb_id, 'completed');
+        Alert.alert('🎉 Show Completed!', `Congratulations! You've finished watching ${show.title}!`);
+      } else {
+        // Normal progress update
+        await updateShowProgress(user.id, show.tmdb_id, season, episode);
+      }
+      
+      // Reload episode data to update UI
+      loadEpisodeData();
     } catch (error) {
       console.error('Error updating progress:', error);
       Alert.alert('Error', 'Failed to update progress.');
@@ -294,23 +346,29 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
                       </Menu>
                     </View>
 
-                    {/* Progress section for watching shows */}
+                    {/* Enhanced Progress and Up Next sections for watching shows */}
                     {userShow.status === 'watching' && (
-                      <View style={styles.progressSection}>
-                        <Text variant="bodyMedium" style={styles.progressTitle}>
-                          Progress: Season {userShow.current_season}, Episode {userShow.current_episode}
-                        </Text>
+                      <View style={styles.enhancedProgressSection}>
+                        <ProgressSection
+                          currentSeason={userShow.current_season}
+                          currentEpisode={userShow.current_episode}
+                          totalEpisodes={totalEpisodes}
+                          watchedEpisodes={watchedEpisodes}
+                        />
                         
-                        <View style={styles.progressControls}>
-                          <Button
-                            mode="outlined"
-                            onPress={() => handleProgressUpdate(userShow.current_season, userShow.current_episode + 1)}
-                            style={styles.progressButton}
-                            disabled={isUpdating}
-                          >
-                            Mark Next Episode Watched
-                          </Button>
-                        </View>
+                        <UpNextCard
+                          episode={nextEpisode}
+                          onMarkWatched={() => {
+                            if (nextEpisode) {
+                              // Use the next episode's season and episode numbers for proper progression
+                              handleProgressUpdate(nextEpisode.season_number, nextEpisode.episode_number);
+                            } else {
+                              // Fallback to increment current episode if no next episode found
+                              handleProgressUpdate(userShow.current_season, userShow.current_episode + 1);
+                            }
+                          }}
+                          isLoading={isUpdating}
+                        />
                       </View>
                     )}
 
@@ -430,6 +488,9 @@ const styles = StyleSheet.create({
   },
   progressSection: {
     gap: 8,
+  },
+  enhancedProgressSection: {
+    gap: 16,
   },
   progressTitle: {
     fontWeight: '500',

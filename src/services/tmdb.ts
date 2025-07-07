@@ -66,6 +66,97 @@ class TMDBService {
     return data.episodes.map(this.transformEpisode);
   }
 
+  // Get total episode count across all seasons (excluding specials)
+  async getTotalEpisodeCount(showId: number): Promise<{ totalEpisodes: number; seasonCount: number }> {
+    try {
+      const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
+      
+      // Filter out season 0 (specials) if it exists
+      const regularSeasons = showDetails.seasons?.filter((season: any) => season.season_number > 0) || [];
+      
+      const totalEpisodes = regularSeasons.reduce((total: number, season: any) => {
+        return total + (season.episode_count || 0);
+      }, 0);
+
+      return {
+        totalEpisodes,
+        seasonCount: regularSeasons.length
+      };
+    } catch (error) {
+      console.error('Error getting total episode count:', error);
+      return { totalEpisodes: 0, seasonCount: 0 };
+    }
+  }
+
+  // Get next episode to watch based on current progress
+  async getNextEpisode(showId: number, currentSeason: number, currentEpisode: number): Promise<Episode | null> {
+    try {
+      // First try to get the next episode in the current season
+      const currentSeasonEpisodes = await this.getSeasonEpisodes(showId, currentSeason);
+      const nextEpisodeInSeason = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode + 1);
+      
+      if (nextEpisodeInSeason) {
+        return nextEpisodeInSeason;
+      }
+
+      // If no next episode in current season, try next season
+      try {
+        const nextSeasonEpisodes = await this.getSeasonEpisodes(showId, currentSeason + 1);
+        return nextSeasonEpisodes.find(ep => ep.episode_number === 1) || null;
+      } catch {
+        // Next season doesn't exist
+        return null;
+      }
+    } catch (error) {
+      console.error('Error getting next episode:', error);
+      return null;
+    }
+  }
+
+  // Calculate episodes watched based on current season/episode position
+  async calculateWatchedEpisodes(showId: number, currentSeason: number, currentEpisode: number): Promise<number> {
+    try {
+      const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
+      const regularSeasons = showDetails.seasons?.filter((season: any) => season.season_number > 0) || [];
+      
+      let watchedCount = 0;
+      
+      // Count all episodes from completed seasons
+      for (const season of regularSeasons) {
+        if (season.season_number < currentSeason) {
+          watchedCount += season.episode_count || 0;
+        } else if (season.season_number === currentSeason) {
+          // For current season, count episodes up to current episode
+          watchedCount += Math.max(0, currentEpisode - 1);
+        }
+      }
+      
+      return watchedCount;
+    } catch (error) {
+      console.error('Error calculating watched episodes:', error);
+      return 0;
+    }
+  }
+
+  // Check if user has completed the entire show
+  async isShowCompleted(showId: number, currentSeason: number, currentEpisode: number): Promise<boolean> {
+    try {
+      const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
+      const regularSeasons = showDetails.seasons?.filter((season: any) => season.season_number > 0) || [];
+      
+      if (regularSeasons.length === 0) return false;
+      
+      const lastSeason = regularSeasons[regularSeasons.length - 1];
+      const lastSeasonEpisodes = await this.getSeasonEpisodes(showId, lastSeason.season_number);
+      const lastEpisode = Math.max(...lastSeasonEpisodes.map(ep => ep.episode_number));
+      
+      return currentSeason === lastSeason.season_number && currentEpisode >= lastEpisode;
+    } catch (error) {
+      console.error('Error checking if show completed:', error);
+      return false;
+    }
+  }
+
   // Transform TMDB show data to our Show interface
   private transformShow = (tmdbShow: any): Show => ({
     id: tmdbShow.id,
