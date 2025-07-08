@@ -6,15 +6,35 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
 import { useShowsStore } from '../store/showsStore';
 import { RootStackParamList } from '../types';
+import { 
+  EnhancedShowCard, 
+  RecentlyWatched, 
+  BetweenSeasonsCard, 
+  OnboardingModal 
+} from '../components';
+import type { RecentActivity } from '../components/RecentlyWatched';
+import type { BetweenSeasonsShow } from '../components/BetweenSeasonsCard';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function CurrentlyWatchingScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { user } = useAuthStore();
-  const { userShows, isLoading, loadUserShows, updateShowStatus } = useShowsStore();
+  const { user, isAuthenticated } = useAuthStore();
+  const { userShows, isLoading, loadUserShows, updateShowStatus, updateShowProgress } = useShowsStore();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'watching' | 'want_to_watch' | 'completed' | 'paused'>('all');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Mock recent activities - in a real app, this would come from a store
+  const [recentActivities] = useState<RecentActivity[]>([
+    {
+      id: '1',
+      userShow: userShows[0] || {} as any,
+      action: 'watched_episode',
+      episode: { season: 2, episode: 5, name: 'The Door' },
+      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
+    },
+  ]);
 
   useEffect(() => {
     // Load user shows when component mounts and user is available
@@ -22,6 +42,18 @@ export default function CurrentlyWatchingScreen() {
       loadUserShows(user.id);
     }
   }, [user?.id, loadUserShows]);
+
+  // Show onboarding for new users
+  useEffect(() => {
+    if (isAuthenticated && userShows.length === 0 && !isLoading) {
+      const hasSeenOnboarding = typeof localStorage !== 'undefined' 
+        ? localStorage.getItem('hasSeenOnboarding') 
+        : null;
+      if (!hasSeenOnboarding) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [isAuthenticated, userShows.length, isLoading]);
 
   // Reload data when screen comes into focus (e.g., returning from ShowDetailsScreen)
   useFocusEffect(
@@ -42,8 +74,38 @@ export default function CurrentlyWatchingScreen() {
     }
   };
 
+  const handleMarkNextEpisode = async (showId: number) => {
+    if (!user?.id) return;
+    
+    const userShow = userShows.find(show => show.show_id === showId);
+    if (!userShow) return;
+    
+    try {
+      await updateShowProgress(
+        user.id, 
+        showId, 
+        userShow.current_season, 
+        userShow.current_episode + 1
+      );
+    } catch (error) {
+      console.error('Failed to update progress:', error);
+    }
+  };
+
   const handleShowPress = (showId: number) => {
     navigation.navigate('ShowDetails', { showId });
+  };
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('hasSeenOnboarding', 'true');
+    }
+  };
+
+  const handleAddPopularShow = async (showId: number) => {
+    // This would integrate with the search/add functionality
+    console.log('Adding popular show:', showId);
   };
 
   const handleFilterChange = (filter: 'all' | 'watching' | 'want_to_watch' | 'completed' | 'paused') => {
@@ -101,6 +163,26 @@ export default function CurrentlyWatchingScreen() {
         <Text variant="headlineMedium" style={styles.title} testID="currently-watching-title">
           {getFilterTitle()}
         </Text>
+
+        {/* Phase 2: Recent Activity Section */}
+        {userShows.length > 0 && recentActivities.length > 0 && (
+          <RecentlyWatched
+            activities={recentActivities}
+            onShowPress={handleShowPress}
+            maxItems={3}
+          />
+        )}
+
+        {/* Phase 2: Between Seasons Section */}
+        {userShows.length > 0 && (
+          <BetweenSeasonsCard
+            shows={[]}
+            onShowPress={handleShowPress}
+            onNotificationToggle={(showId, enabled) => {
+              console.log('Toggle notification for show:', showId, enabled);
+            }}
+          />
+        )}
         
         {isLoading ? (
           <Card style={styles.placeholderCard}>
@@ -131,108 +213,77 @@ export default function CurrentlyWatchingScreen() {
           </Card>
         ) : (
           <>
+            {/* Phase 2: Enhanced Show Cards for Currently Watching */}
             {watchingShows.length > 0 && shouldShowSection('watching') && (
-              <Card style={styles.showCard}>
-                <Card.Content>
-                  <Text variant="titleMedium" style={styles.sectionTitle}>Currently Watching ({watchingShows.length})</Text>
-                  {watchingShows.map(userShow => (
-                    <TouchableOpacity 
-                      key={userShow.id} 
-                      style={styles.showItem}
-                      onPress={() => handleShowPress(userShow.show_id)}
-                      activeOpacity={0.7}
-                      testID={`watching-show-${userShow.show_id}`}
-                    >
-                      <Text variant="bodyLarge">{userShow.show?.title || 'Unknown Show'}</Text>
-                      <Text variant="bodySmall" style={styles.progressText}>
-                        S{userShow.current_season}E{userShow.current_episode}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </Card.Content>
-              </Card>
+              <View style={styles.section}>
+                <Text variant="titleMedium" style={styles.sectionTitle}>
+                  Currently Watching ({watchingShows.length})
+                </Text>
+                {watchingShows.map(userShow => (
+                  <EnhancedShowCard
+                    key={userShow.id}
+                    userShow={userShow}
+                    onPress={() => handleShowPress(userShow.show_id)}
+                    onMarkNextEpisode={() => handleMarkNextEpisode(userShow.show_id)}
+                    onQuickStatusChange={(status) => handleStatusUpdate(userShow.show_id, status)}
+                    testID={`watching-show-${userShow.show_id}`}
+                  />
+                ))}
+              </View>
             )}
 
-            {/* Show want_to_watch shows */}
-            {userShows.filter(show => show.status === 'want_to_watch').length > 0 && shouldShowSection('want_to_watch') && (
-              <Card style={styles.showCard}>
-                <Card.Content>
-                  <Text variant="titleMedium" style={styles.sectionTitle}>Want to Watch ({userShows.filter(show => show.status === 'want_to_watch').length})</Text>
-                  {userShows.filter(show => show.status === 'want_to_watch').map(userShow => (
-                    <TouchableOpacity 
-                      key={userShow.id} 
-                      style={styles.showItemWithAction}
-                      onPress={() => handleShowPress(userShow.show_id)}
-                      activeOpacity={0.7}
-                      testID={`want-to-watch-show-${userShow.show_id}`}
-                    >
-                      <View style={styles.showInfo}>
-                        <Text variant="bodyLarge">{userShow.show?.title || 'Unknown Show'}</Text>
-                        <Text variant="bodySmall" style={styles.progressText}>
-                          Added {new Date(userShow.created_at).toLocaleDateString()}
-                        </Text>
-                      </View>
-                      <Button 
-                        mode="contained" 
-                        compact 
-                        onPress={(e) => {
-                          e?.stopPropagation?.(); // Prevent triggering the TouchableOpacity
-                          handleStatusUpdate(userShow.show_id, 'watching');
-                        }}
-                        style={styles.actionButton}
-                      >
-                        Start Watching
-                      </Button>
-                    </TouchableOpacity>
-                  ))}
-                </Card.Content>
-              </Card>
+            {/* Phase 2: Enhanced Show Cards for Want to Watch */}
+            {wantToWatchShows.length > 0 && shouldShowSection('want_to_watch') && (
+              <View style={styles.section}>
+                <Text variant="titleMedium" style={styles.sectionTitle}>
+                  Want to Watch ({wantToWatchShows.length})
+                </Text>
+                {wantToWatchShows.map(userShow => (
+                  <EnhancedShowCard
+                    key={userShow.id}
+                    userShow={userShow}
+                    onPress={() => handleShowPress(userShow.show_id)}
+                    onQuickStatusChange={(status) => handleStatusUpdate(userShow.show_id, status)}
+                    testID={`want-to-watch-show-${userShow.show_id}`}
+                  />
+                ))}
+              </View>
             )}
-            
+
+            {/* Phase 2: Enhanced Show Cards for Completed */}
             {completedShows.length > 0 && shouldShowSection('completed') && (
-              <Card style={styles.showCard}>
-                <Card.Content>
-                  <Text variant="titleMedium" style={styles.sectionTitle}>Completed ({completedShows.length})</Text>
-                  {completedShows.map(userShow => (
-                    <TouchableOpacity 
-                      key={userShow.id} 
-                      style={styles.showItem}
-                      onPress={() => handleShowPress(userShow.show_id)}
-                      activeOpacity={0.7}
-                      testID={`completed-show-${userShow.show_id}`}
-                    >
-                      <Text variant="bodyLarge">{userShow.show?.title || 'Unknown Show'}</Text>
-                      {userShow.rating && (
-                        <Text variant="bodySmall" style={styles.ratingText}>
-                          ⭐ {userShow.rating}/10
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </Card.Content>
-              </Card>
+              <View style={styles.section}>
+                <Text variant="titleMedium" style={styles.sectionTitle}>
+                  Completed ({completedShows.length})
+                </Text>
+                {completedShows.map(userShow => (
+                  <EnhancedShowCard
+                    key={userShow.id}
+                    userShow={userShow}
+                    onPress={() => handleShowPress(userShow.show_id)}
+                    showProgress={false}
+                    testID={`completed-show-${userShow.show_id}`}
+                  />
+                ))}
+              </View>
             )}
 
+            {/* Phase 2: Enhanced Show Cards for Paused */}
             {pausedShows.length > 0 && shouldShowSection('paused') && (
-              <Card style={styles.showCard}>
-                <Card.Content>
-                  <Text variant="titleMedium" style={styles.sectionTitle}>Paused ({pausedShows.length})</Text>
-                  {pausedShows.map(userShow => (
-                    <TouchableOpacity 
-                      key={userShow.id} 
-                      style={styles.showItem}
-                      onPress={() => handleShowPress(userShow.show_id)}
-                      activeOpacity={0.7}
-                      testID={`paused-show-${userShow.show_id}`}
-                    >
-                      <Text variant="bodyLarge">{userShow.show?.title || 'Unknown Show'}</Text>
-                      <Text variant="bodySmall" style={styles.progressText}>
-                        S{userShow.current_season}E{userShow.current_episode}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </Card.Content>
-              </Card>
+              <View style={styles.section}>
+                <Text variant="titleMedium" style={styles.sectionTitle}>
+                  Paused ({pausedShows.length})
+                </Text>
+                {pausedShows.map(userShow => (
+                  <EnhancedShowCard
+                    key={userShow.id}
+                    userShow={userShow}
+                    onPress={() => handleShowPress(userShow.show_id)}
+                    onQuickStatusChange={(status) => handleStatusUpdate(userShow.show_id, status)}
+                    testID={`paused-show-${userShow.show_id}`}
+                  />
+                ))}
+              </View>
             )}
           </>
         )}
@@ -308,6 +359,9 @@ const styles = StyleSheet.create({
   },
   showCard: {
     marginBottom: 16,
+  },
+  section: {
+    marginBottom: 24,
   },
   sectionTitle: {
     marginBottom: 12,

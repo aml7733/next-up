@@ -101,7 +101,7 @@ describe('CurrentlyWatchingScreen', () => {
     // Should show the want to watch section
     expect(getAllByText('Want to Watch (1)').length).toBeGreaterThan(0);
     expect(getByText('Test Show')).toBeTruthy();
-    expect(getByText('Start Watching')).toBeTruthy();
+    expect(getByText('Start')).toBeTruthy();
   });
 
   it('calls updateShowStatus when start watching button is pressed', () => {
@@ -143,7 +143,7 @@ describe('CurrentlyWatchingScreen', () => {
 
     const { getByText } = renderWithTheme(<CurrentlyWatchingScreen />);
     
-    const startWatchingButton = getByText('Start Watching');
+    const startWatchingButton = getByText('Start');
     fireEvent.press(startWatchingButton);
     
     expect(mockUpdateShowStatus).toHaveBeenCalledWith('test-user-id', 123, 'watching');
