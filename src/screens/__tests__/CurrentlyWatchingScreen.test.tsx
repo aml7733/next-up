@@ -30,7 +30,7 @@ describe('CurrentlyWatchingScreen', () => {
   it('renders correctly with no shows', () => {
     const { getByText } = renderWithTheme(<CurrentlyWatchingScreen />);
     
-    expect(getByText('Currently Watching')).toBeTruthy();
+    expect(getByText('My Shows')).toBeTruthy();
     expect(getByText('No shows yet')).toBeTruthy();
     expect(getByText('Start tracking your favorite TV shows by searching for them in the Search tab.')).toBeTruthy();
   });
@@ -46,7 +46,7 @@ describe('CurrentlyWatchingScreen', () => {
   it('has correct accessibility properties', () => {
     const { getByText } = renderWithTheme(<CurrentlyWatchingScreen />);
     
-    const title = getByText('Currently Watching');
+    const title = getByText('My Shows');
     expect(title).toBeTruthy();
   });
 
@@ -96,10 +96,10 @@ describe('CurrentlyWatchingScreen', () => {
       updateShowStatus: mockUpdateShowStatus,
     });
 
-    const { getByText } = renderWithTheme(<CurrentlyWatchingScreen />);
+    const { getByText, getAllByText } = renderWithTheme(<CurrentlyWatchingScreen />);
     
     // Should show the want to watch section
-    expect(getByText('Want to Watch (1)')).toBeTruthy();
+    expect(getAllByText('Want to Watch (1)').length).toBeGreaterThan(0);
     expect(getByText('Test Show')).toBeTruthy();
     expect(getByText('Start Watching')).toBeTruthy();
   });

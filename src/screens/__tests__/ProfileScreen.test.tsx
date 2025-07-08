@@ -10,6 +10,13 @@ jest.mock('../../store/authStore', () => ({
   useAuthStore: () => mockUseAuthStore(),
 }));
 
+// Mock the shows store
+const mockUseShowsStore = jest.fn();
+
+jest.mock('../../store/showsStore', () => ({
+  useShowsStore: () => mockUseShowsStore(),
+}));
+
 const renderWithTheme = (component: React.ReactElement) => {
   return render(component);
 };
@@ -33,8 +40,21 @@ describe('ProfileScreen', () => {
     });
   };
 
+  // Helper to set shows store state
+  const setShowsStore = (userShows: any[] = []) => {
+    mockUseShowsStore.mockReturnValue({
+      userShows,
+      isLoading: false,
+      error: null,
+      loadUserShows: jest.fn(),
+      updateShowStatus: jest.fn(),
+    });
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
+    // Set default empty shows store
+    setShowsStore([]);
   });
 
   it('renders correctly when user is not authenticated', () => {

@@ -176,7 +176,7 @@ export default function CurrentlyWatchingScreen() {
                         mode="contained" 
                         compact 
                         onPress={(e) => {
-                          e.stopPropagation(); // Prevent triggering the TouchableOpacity
+                          e?.stopPropagation?.(); // Prevent triggering the TouchableOpacity
                           handleStatusUpdate(userShow.show_id, 'watching');
                         }}
                         style={styles.actionButton}
