@@ -36,7 +36,7 @@ class TMDBService {
       const data = await this.fetchFromTMDB(`/search/tv?query=${encodeURIComponent(query.trim())}&page=${page}`);
       
       return {
-        results: data.results.map(this.transformShow),
+        results: data.results.map(this.transformShow).filter((show: Show) => !!show.title),
         total_pages: data.total_pages,
       };
     } catch (error) {
@@ -49,9 +49,23 @@ class TMDBService {
   async getPopularShows(page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
     const data = await this.fetchFromTMDB(`/tv/popular?page=${page}`);
     return {
-      results: data.results.map(this.transformShow),
+      results: data.results.map(this.transformShow).filter((show: Show) => !!show.title),
       total_pages: data.total_pages,
     };
+  }
+
+  // Get trending TV shows
+  async getTrendingShows(timeWindow: 'day' | 'week' = 'week', page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
+    const data = await this.fetchFromTMDB(`/trending/tv/${timeWindow}?page=${page}`);
+    return {
+      results: data.results.map(this.transformShow).filter((show: Show) => !!show.title),
+      total_pages: data.total_pages,
+    };
+  }
+
+  // Get TV show genres
+  async getGenres(): Promise<{ genres: { id: number; name: string }[] }> {
+    return await this.fetchFromTMDB('/genre/tv/list');
   }
 
   // Get show details
