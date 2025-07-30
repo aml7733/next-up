@@ -403,6 +403,9 @@ describe('TMDBService', () => {
       });
 
       it('should return 0 on error', async () => {
+        // Suppress expected console.error
+        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
         // Mock only the fetchFromTMDB to throw an error, preserve other mocks
         const fetchFromTMDBSpy = jest.spyOn(tmdbService as any, 'fetchFromTMDB');
         fetchFromTMDBSpy.mockRejectedValue(new Error('API error'));
@@ -410,7 +413,9 @@ describe('TMDBService', () => {
         const result = await tmdbService.calculateWatchedEpisodes(1399, 1, 1);
         
         expect(result).toBe(0);
-        // Note: Actual console.error call is verified by visual inspection in test output
+        
+        // Restore console.error
+        consoleSpy.mockRestore();
         
         // Restore the successful mock for subsequent tests
         fetchFromTMDBSpy.mockImplementation(async (...args: unknown[]) => {
@@ -473,11 +478,19 @@ describe('TMDBService', () => {
       });
 
       it('should return false on error', async () => {
+        // Suppress expected console.error
+        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
         // Mock only the fetchFromTMDB to throw an error, preserve other mocks
         const fetchFromTMDBSpy = jest.spyOn(tmdbService as any, 'fetchFromTMDB');
         fetchFromTMDBSpy.mockRejectedValue(new Error('API error'));
 
         const result = await tmdbService.isShowCompleted(1399, 1, 1);
+        
+        expect(result).toBe(false);
+        
+        // Restore console.error
+        consoleSpy.mockRestore();
         
         expect(result).toBe(false);
         // Note: Actual console.error call is verified by visual inspection in test output
