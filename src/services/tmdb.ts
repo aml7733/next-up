@@ -2,15 +2,34 @@ import { Show, Episode } from '../types';
 
 const TMDB_API_KEY = process.env.EXPO_PUBLIC_TMDB_API_KEY || 'YOUR_TMDB_API_KEY';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+
+// Types for better type safety
+interface TMDBResponse<T> {
+  results: T[];
+  total_pages: number;
+  total_results: number;
+}
+
+interface ShowListResponse {
+  results: Show[];
+  total_pages: number;
+}
+
+interface SeasonInfo {
+  season_number: number;
+  episode_count: number;
+}
 
 class TMDBService {
+  // ============================================================================
+  // CORE API METHODS
+  // ============================================================================
+
   private async fetchFromTMDB(endpoint: string): Promise<any> {
     if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY') {
       throw new Error('TMDB API key not configured. Please set EXPO_PUBLIC_TMDB_API_KEY in your .env file.');
     }
 
-    // Check if endpoint already has query parameters
     const separator = endpoint.includes('?') ? '&' : '?';
     const url = `${TMDB_BASE_URL}${endpoint}${separator}api_key=${TMDB_API_KEY}`;
     
@@ -26,152 +45,174 @@ class TMDBService {
     }
   }
 
-  // Search for TV shows
-  async searchShows(query: string, page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
-    if (!query.trim()) {
-      return { results: [], total_pages: 0 };
-    }
-
+  private async fetchShowList(endpoint: string, errorContext: string): Promise<ShowListResponse> {
     try {
-      const data = await this.fetchFromTMDB(`/search/tv?query=${encodeURIComponent(query.trim())}&page=${page}`);
-      
+      const data: TMDBResponse<any> = await this.fetchFromTMDB(endpoint);
       return {
         results: data.results.map(this.transformShow).filter((show: Show) => !!show.title),
         total_pages: data.total_pages,
       };
     } catch (error) {
-      console.error('TMDB search error:', error);
+      console.error(`${errorContext} error:`, error);
       throw error;
     }
   }
 
-  // Get popular TV shows
-  async getPopularShows(page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
-    const data = await this.fetchFromTMDB(`/tv/popular?page=${page}`);
-    return {
-      results: data.results.map(this.transformShow).filter((show: Show) => !!show.title),
-      total_pages: data.total_pages,
-    };
+  private async withErrorHandling<T>(
+    operation: () => Promise<T>,
+    errorMessage: string,
+    defaultValue: T
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      console.error(errorMessage, error);
+      return defaultValue;
+    }
   }
 
-  // Get trending TV shows
-  async getTrendingShows(timeWindow: 'day' | 'week' = 'week', page: number = 1): Promise<{ results: Show[]; total_pages: number }> {
-    const data = await this.fetchFromTMDB(`/trending/tv/${timeWindow}?page=${page}`);
-    return {
-      results: data.results.map(this.transformShow).filter((show: Show) => !!show.title),
-      total_pages: data.total_pages,
-    };
+  // ============================================================================
+  // SHOW DISCOVERY METHODS
+  // ============================================================================
+
+  async searchShows(query: string, page: number = 1): Promise<ShowListResponse> {
+    if (!query.trim()) {
+      return { results: [], total_pages: 0 };
+    }
+
+    const endpoint = `/search/tv?query=${encodeURIComponent(query.trim())}&page=${page}`;
+    return this.fetchShowList(endpoint, 'TMDB search');
   }
 
-  // Get TV show genres
+  async getPopularShows(page: number = 1): Promise<ShowListResponse> {
+    return this.fetchShowList(`/tv/popular?page=${page}`, 'TMDB popular shows');
+  }
+
+  async getTrendingShows(timeWindow: 'day' | 'week' = 'week', page: number = 1): Promise<ShowListResponse> {
+    return this.fetchShowList(`/trending/tv/${timeWindow}?page=${page}`, 'TMDB trending shows');
+  }
+
   async getGenres(): Promise<{ genres: { id: number; name: string }[] }> {
-    return await this.fetchFromTMDB('/genre/tv/list');
+    return this.fetchFromTMDB('/genre/tv/list');
   }
 
-  // Get show details
+  // ============================================================================
+  // SHOW DETAILS METHODS
+  // ============================================================================
+
   async getShowDetails(showId: number): Promise<Show> {
     const data = await this.fetchFromTMDB(`/tv/${showId}`);
     return this.transformShow(data);
   }
 
-  // Get show episodes for a season
   async getSeasonEpisodes(showId: number, seasonNumber: number): Promise<Episode[]> {
     const data = await this.fetchFromTMDB(`/tv/${showId}/season/${seasonNumber}`);
     return data.episodes.map(this.transformEpisode);
   }
 
-  // Get total episode count across all seasons (excluding specials)
+  // ============================================================================
+  // PROGRESS TRACKING METHODS
+  // ============================================================================
+
   async getTotalEpisodeCount(showId: number): Promise<{ totalEpisodes: number; seasonCount: number }> {
-    try {
-      const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
-      
-      // Filter out season 0 (specials) if it exists
-      const regularSeasons = showDetails.seasons?.filter((season: any) => season.season_number > 0) || [];
-      
-      const totalEpisodes = regularSeasons.reduce((total: number, season: any) => {
-        return total + (season.episode_count || 0);
-      }, 0);
+    return this.withErrorHandling(
+      async () => {
+        const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
+        const regularSeasons = this.getRegularSeasons(showDetails.seasons);
+        
+        const totalEpisodes = regularSeasons.reduce((total: number, season: SeasonInfo) => 
+          total + (season.episode_count || 0), 0
+        );
 
-      return {
-        totalEpisodes,
-        seasonCount: regularSeasons.length
-      };
-    } catch (error) {
-      console.error('Error getting total episode count:', error);
-      return { totalEpisodes: 0, seasonCount: 0 };
-    }
+        return { totalEpisodes, seasonCount: regularSeasons.length };
+      },
+      'Error getting total episode count:',
+      { totalEpisodes: 0, seasonCount: 0 }
+    );
   }
 
-  // Get next episode to watch based on current progress
   async getNextEpisode(showId: number, currentSeason: number, currentEpisode: number): Promise<Episode | null> {
-    try {
-      // First try to get the next episode in the current season
-      const currentSeasonEpisodes = await this.getSeasonEpisodes(showId, currentSeason);
-      const nextEpisodeInSeason = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode + 1);
-      
-      if (nextEpisodeInSeason) {
-        return nextEpisodeInSeason;
-      }
-
-      // If no next episode in current season, try next season
-      try {
-        const nextSeasonEpisodes = await this.getSeasonEpisodes(showId, currentSeason + 1);
-        return nextSeasonEpisodes.find(ep => ep.episode_number === 1) || null;
-      } catch {
-        // Next season doesn't exist
-        return null;
-      }
-    } catch (error) {
-      console.error('Error getting next episode:', error);
-      return null;
-    }
-  }
-
-  // Calculate episodes watched based on current season/episode position
-  async calculateWatchedEpisodes(showId: number, currentSeason: number, currentEpisode: number): Promise<number> {
-    try {
-      const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
-      const regularSeasons = showDetails.seasons?.filter((season: any) => season.season_number > 0) || [];
-      
-      let watchedCount = 0;
-      
-      // Count all episodes from completed seasons
-      for (const season of regularSeasons) {
-        if (season.season_number < currentSeason) {
-          watchedCount += season.episode_count || 0;
-        } else if (season.season_number === currentSeason) {
-          // For current season, count episodes up to current episode
-          watchedCount += Math.max(0, currentEpisode - 1);
+    return this.withErrorHandling(
+      async () => {
+        // Try to get the next episode in the current season
+        const currentSeasonEpisodes = await this.getSeasonEpisodes(showId, currentSeason);
+        const nextEpisodeInSeason = currentSeasonEpisodes.find(ep => ep.episode_number === currentEpisode + 1);
+        
+        if (nextEpisodeInSeason) {
+          return nextEpisodeInSeason;
         }
-      }
-      
-      return watchedCount;
-    } catch (error) {
-      console.error('Error calculating watched episodes:', error);
-      return 0;
-    }
+
+        // If no next episode in current season, try next season
+        try {
+          const nextSeasonEpisodes = await this.getSeasonEpisodes(showId, currentSeason + 1);
+          return nextSeasonEpisodes.find(ep => ep.episode_number === 1) || null;
+        } catch {
+          return null; // Next season doesn't exist
+        }
+      },
+      'Error getting next episode:',
+      null
+    );
   }
 
-  // Check if user has completed the entire show
+  async calculateWatchedEpisodes(showId: number, currentSeason: number, currentEpisode: number): Promise<number> {
+    return this.withErrorHandling(
+      async () => {
+        const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
+        const regularSeasons = this.getRegularSeasons(showDetails.seasons);
+        
+        return regularSeasons.reduce((watchedCount: number, season: SeasonInfo) => {
+          if (season.season_number < currentSeason) {
+            return watchedCount + (season.episode_count || 0);
+          } else if (season.season_number === currentSeason) {
+            return watchedCount + Math.max(0, currentEpisode - 1);
+          }
+          return watchedCount;
+        }, 0);
+      },
+      'Error calculating watched episodes:',
+      0
+    );
+  }
+
   async isShowCompleted(showId: number, currentSeason: number, currentEpisode: number): Promise<boolean> {
-    try {
-      const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
-      const regularSeasons = showDetails.seasons?.filter((season: any) => season.season_number > 0) || [];
-      
-      if (regularSeasons.length === 0) return false;
-      
-      const lastSeason = regularSeasons[regularSeasons.length - 1];
-      const lastSeasonEpisodes = await this.getSeasonEpisodes(showId, lastSeason.season_number);
-      const lastEpisode = Math.max(...lastSeasonEpisodes.map(ep => ep.episode_number));
-      
-      return currentSeason === lastSeason.season_number && currentEpisode >= lastEpisode;
-    } catch (error) {
-      console.error('Error checking if show completed:', error);
-      return false;
-    }
+    return this.withErrorHandling(
+      async () => {
+        const showDetails = await this.fetchFromTMDB(`/tv/${showId}`);
+        const regularSeasons = this.getRegularSeasons(showDetails.seasons);
+        
+        if (regularSeasons.length === 0) return false;
+        
+        const lastSeason = regularSeasons[regularSeasons.length - 1];
+        const lastSeasonEpisodes = await this.getSeasonEpisodes(showId, lastSeason.season_number);
+        
+        if (lastSeasonEpisodes.length === 0) return false;
+        
+        const lastEpisode = Math.max(...lastSeasonEpisodes.map(ep => ep.episode_number));
+        return currentSeason === lastSeason.season_number && currentEpisode >= lastEpisode;
+      },
+      'Error checking if show completed:',
+      false
+    );
   }
 
-  // Transform TMDB show data to our Show interface
+  // ============================================================================
+  // UTILITY METHODS
+  // ============================================================================
+
+  private getRegularSeasons(seasons?: any[]): SeasonInfo[] {
+    return seasons?.filter(season => season.season_number > 0) || [];
+  }
+
+  getImageUrl(path: string | undefined, size: string = 'w500'): string | undefined {
+    if (!path) return undefined;
+    return `https://image.tmdb.org/t/p/${size}${path}`;
+  }
+
+  // ============================================================================
+  // DATA TRANSFORMATION METHODS
+  // ============================================================================
+
   private transformShow = (tmdbShow: any): Show => ({
     id: tmdbShow.id,
     title: tmdbShow.name || tmdbShow.title,
@@ -184,7 +225,6 @@ class TMDBService {
     tmdb_id: tmdbShow.id,
   });
 
-  // Transform TMDB episode data to our Episode interface
   private transformEpisode = (tmdbEpisode: any): Episode => ({
     id: tmdbEpisode.id,
     episode_number: tmdbEpisode.episode_number,
@@ -194,12 +234,6 @@ class TMDBService {
     air_date: tmdbEpisode.air_date,
     still_path: tmdbEpisode.still_path,
   });
-
-  // Helper function to get full image URL
-  getImageUrl(path: string | undefined, size: string = 'w500'): string | undefined {
-    if (!path) return undefined;
-    return `https://image.tmdb.org/t/p/${size}${path}`;
-  }
 }
 
 export const tmdbService = new TMDBService();
