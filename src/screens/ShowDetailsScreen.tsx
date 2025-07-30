@@ -43,7 +43,7 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   // Enhanced episode tracking state
   const [totalEpisodes, setTotalEpisodes] = useState<number>(0);
   const [seasonCount, setSeasonCount] = useState<number>(0);
-  const [nextEpisode, setNextEpisode] = useState<any>(null);
+  const [nextEpisode, setNextEpisode] = useState<Episode | null>(null);
   const [watchedEpisodes, setWatchedEpisodes] = useState<number>(0);
 
   useEffect(() => {

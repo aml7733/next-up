@@ -17,7 +17,9 @@ export interface SyncOptions {
 
 class SyncService {
   private syncInterval: NodeJS.Timeout | null = null;
-  private readonly SYNC_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
+  private readonly HOURS_TO_MS = 1000 * 60 * 60; // Milliseconds in an hour
+  private readonly SYNC_INTERVAL_HOURS = 24; // Sync interval in hours
+  private readonly SYNC_INTERVAL = this.HOURS_TO_MS * this.SYNC_INTERVAL_HOURS; // 24 hours
   private readonly MAX_RETRIES = 3;
   
   private status: SyncStatus = {
