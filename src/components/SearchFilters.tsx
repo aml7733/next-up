@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Chip, Button, TextInput, useTheme } from 'react-native-paper';
 import { SearchFilters, GenreInfo } from '../services/discoveryService';
@@ -19,7 +19,7 @@ export const SearchFiltersComponent: React.FC<SearchFiltersProps> = ({
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
 
-  const updateFilter = <K extends keyof SearchFilters>(
+  const updateFilter = useCallback(<K extends keyof SearchFilters>(
     key: K,
     value: SearchFilters[K]
   ) => {
@@ -27,16 +27,16 @@ export const SearchFiltersComponent: React.FC<SearchFiltersProps> = ({
       ...filters,
       [key]: value,
     });
-  };
+  }, [filters, onFiltersChange]);
 
-  const toggleGenre = (genreId: number) => {
+  const toggleGenre = useCallback((genreId: number) => {
     const currentGenres = filters.genre || [];
     const updatedGenres = currentGenres.includes(genreId)
       ? currentGenres.filter(id => id !== genreId)
       : [...currentGenres, genreId];
     
     updateFilter('genre', updatedGenres.length > 0 ? updatedGenres : undefined);
-  };
+  }, [filters.genre, updateFilter]);
 
   const hasActiveFilters = Object.keys(filters).length > 0;
   const activeFiltersCount = Object.values(filters).filter(v => 
