@@ -112,9 +112,19 @@ export const useShowsStore = create<ShowsState>((set, get) => ({
   },
   
   removeShow: async (userId: string, showId: number) => {
-    // TODO: Implement deleteUserShow method in database service
-    console.log('TODO: Remove show:', { userId, showId });
-    set({ error: 'Feature not implemented yet' });
+    try {
+      await localDB.deleteUserShow(userId, showId);
+      
+      // Remove from local state
+      const userShows = get().userShows.filter(userShow => userShow.show_id !== showId);
+      set({ userShows });
+      
+      console.log('Show removed successfully:', { showId });
+    } catch (error) {
+      console.error('Failed to remove show:', error);
+      set({ error: 'Failed to remove show' });
+      throw error; // Re-throw so the UI can handle it
+    }
   },
   
   searchShows: async (query: string) => {

@@ -1,11 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { Text, Card, Button, Avatar, Divider, useTheme } from 'react-native-paper';
 import { useAuthStore } from '../store/authStore';
+import { useShowsStore } from '../store/showsStore';
 
 export default function ProfileScreen() {
   const theme = useTheme();
   const { user, isAuthenticated, signOut } = useAuthStore();
+  const { userShows, loadUserShows } = useShowsStore();
+
+  useEffect(() => {
+    // Load user shows for stats when component mounts and user is available
+    if (user?.id) {
+      loadUserShows(user.id);
+    }
+  }, [user?.id, loadUserShows]);
+
+  // Calculate stats from user shows
+  const watchingCount = userShows.filter(show => show.status === 'watching').length;
+  const completedCount = userShows.filter(show => show.status === 'completed').length;
+  
+  // Calculate total episodes watched (this is an estimate based on current progress)
+  const totalEpisodesWatched = userShows.reduce((total, userShow) => {
+    if (userShow.status === 'completed') {
+      // For completed shows, assume all episodes are watched
+      // This is an approximation since we don't have exact episode counts
+      return total + (userShow.current_season * 10); // Rough estimate
+    } else if (userShow.status === 'watching') {
+      // For currently watching shows, estimate based on current progress
+      return total + ((userShow.current_season - 1) * 10 + userShow.current_episode);
+    }
+    return total;
+  }, 0);
 
   const handleSignOut = async () => {
     try {
@@ -61,15 +87,15 @@ export default function ProfileScreen() {
             </Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text variant="headlineSmall">0</Text>
+                <Text variant="headlineSmall">{watchingCount}</Text>
                 <Text variant="bodySmall">Shows Watching</Text>
               </View>
               <View style={styles.statItem}>
-                <Text variant="headlineSmall">0</Text>
+                <Text variant="headlineSmall">{totalEpisodesWatched}</Text>
                 <Text variant="bodySmall">Episodes Watched</Text>
               </View>
               <View style={styles.statItem}>
-                <Text variant="headlineSmall">0</Text>
+                <Text variant="headlineSmall">{completedCount}</Text>
                 <Text variant="bodySmall">Shows Completed</Text>
               </View>
             </View>

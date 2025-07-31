@@ -2,19 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Text, Searchbar, Card, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { Show } from '../types';
+import { Show, RootStackParamList } from '../types';
 import { tmdbService } from '../services/tmdb';
 import { useAuthStore } from '../store/authStore';
 import { useShowsStore } from '../store/showsStore';
 import { ShowCard, EmptyState, LoadingState } from '../components';
+import { SearchFiltersComponent } from '../components/SearchFilters';
+import { TrendingSection } from '../components/TrendingSection';
+import { discoveryService, SearchFilters } from '../services/discoveryService';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function SearchScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<NavigationProp>();
   const { user, isAuthenticated } = useAuthStore();
   const { addShow } = useShowsStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [filters, setFilters] = useState<SearchFilters>({});
+
+  // Initialize discovery service
+  useEffect(() => {
+    discoveryService.initialize();
+  }, []);
 
   // Debounce search query to avoid too many API calls
   useEffect(() => {
@@ -25,38 +39,52 @@ export default function SearchScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Search shows query
+  // Enhanced search with filters
   const { 
     data: searchResults, 
     isLoading: isSearching, 
     error: searchError,
     isError: hasSearchError 
   } = useQuery({
-    queryKey: ['searchShows', debouncedQuery],
-    queryFn: () => tmdbService.searchShows(debouncedQuery),
+    queryKey: ['searchShows', debouncedQuery, filters],
+    queryFn: () => discoveryService.searchShows(debouncedQuery, { filters }),
     enabled: debouncedQuery.length > 0,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Popular shows query (for when no search is active)
+  // Trending shows query
   const { 
-    data: popularShows, 
-    isLoading: isLoadingPopular, 
-    error: popularError 
+    data: trendingShows, 
+    isLoading: isLoadingTrending, 
+    error: trendingError 
   } = useQuery({
-    queryKey: ['popularShows'],
-    queryFn: () => tmdbService.getPopularShows(),
+    queryKey: ['trendingShows'],
+    queryFn: () => discoveryService.getTrendingShows(),
     enabled: !debouncedQuery,
     staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
+  // Genres query for filters
+  const { 
+    data: genres = [], 
+  } = useQuery({
+    queryKey: ['genres'],
+    queryFn: () => discoveryService.getGenres(),
+    staleTime: 1000 * 60 * 60 * 24, // 24 hours
+  });
+
+  const handleFiltersChange = (newFilters: SearchFilters) => {
+    setFilters(newFilters);
+  };
+
+  const handleClearFilters = () => {
+    setFilters({});
   };
 
   const handleShowPress = (show: Show) => {
-    // TODO: Navigate to show details screen
-    console.log('Show pressed:', show.title);
+    // Navigate to show details screen
+    console.log('Navigate to show details:', show.title);
+    navigation.navigate('ShowDetails', { showId: show.tmdb_id });
   };
 
   const handleAddToTracking = async (show: Show) => {
@@ -89,13 +117,13 @@ export default function SearchScreen() {
             title="Search Error"
             description="Failed to search shows. Please check your connection and try again."
             actionText="Retry"
-            onActionPress={() => refetch()}
+            onActionPress={() => setSearchQuery(searchQuery)}
             testID="search-error"
           />
         );
       }
 
-      if (!searchResults?.results.length) {
+      if (!searchResults?.shows.length) {
         return (
           <EmptyState
             title="No Results"
@@ -108,9 +136,9 @@ export default function SearchScreen() {
       return (
         <View>
           <Text variant="titleMedium" style={styles.resultsTitle} testID="search-results-title">
-            Search results for "{debouncedQuery}" ({searchResults.results.length})
+            Search results for "{debouncedQuery}" ({searchResults.shows.length})
           </Text>
-          {searchResults.results.map((show) => (
+          {searchResults.shows.map((show: Show) => (
             <ShowCard
               key={show.id}
               show={show}
@@ -124,19 +152,9 @@ export default function SearchScreen() {
       );
     }
 
-    // Show popular shows when no search is active
-    if (isLoadingPopular) {
-      return <LoadingState message="Loading popular shows..." testID="popular-loading" />;
-    }
-
-    if (popularError) {
-      return (
-        <EmptyState
-          title="Connection Error"
-          description="Failed to load popular shows. Please check your connection and try again."
-          testID="popular-error"
-        />
-      );
+    // Show trending and discovery when no search is active
+    if (isLoadingTrending) {
+      return <LoadingState message="Loading trending shows..." testID="trending-loading" />;
     }
 
     return (
@@ -145,22 +163,30 @@ export default function SearchScreen() {
           Discover Shows
         </Text>
         
-        {popularShows?.results && (
+        {trendingShows && (
           <>
-            <Text variant="titleMedium" style={styles.sectionTitle} testID="popular-shows-title">
-              Popular Shows
-            </Text>
-            {popularShows.results.slice(0, 10).map((show) => (
-              <ShowCard
-                key={show.id}
-                show={show}
-                onPress={handleShowPress}
-                onAddToTracking={isAuthenticated ? handleAddToTracking : undefined}
-                showAddButton={isAuthenticated}
-                testID={`popular-show-${show.id}`}
-              />
-            ))}
+            <TrendingSection
+              title="📈 Trending This Week"
+              shows={trendingShows.weekly}
+              onShowPress={(showId) => navigation.navigate('ShowDetails', { showId })}
+              isLoading={isLoadingTrending}
+            />
+            
+            <TrendingSection
+              title="🔥 Trending Today"
+              shows={trendingShows.daily}
+              onShowPress={(showId) => navigation.navigate('ShowDetails', { showId })}
+              isLoading={isLoadingTrending}
+            />
           </>
+        )}
+
+        {trendingError && (
+          <EmptyState
+            title="Connection Error"
+            description="Failed to load trending shows. Please check your connection and try again."
+            testID="trending-error"
+          />
         )}
       </>
     );
@@ -173,10 +199,20 @@ export default function SearchScreen() {
           placeholder="Search for TV shows..."
           onChangeText={setSearchQuery}
           value={searchQuery}
-          onSubmitEditing={() => handleSearch(searchQuery)}
+          onSubmitEditing={() => setDebouncedQuery(searchQuery)}
           style={styles.searchbar}
           testID="search-input"
         />
+        
+        {/* Search filters toggle */}
+        {debouncedQuery && (
+          <SearchFiltersComponent
+            filters={filters}
+            genres={genres}
+            onFiltersChange={handleFiltersChange}
+            onClear={handleClearFilters}
+          />
+        )}
       </View>
 
       <ScrollView 

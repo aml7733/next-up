@@ -9,7 +9,10 @@ interface ShowCardProps {
   show: Show;
   onPress?: (show: Show) => void;
   onAddToTracking?: (show: Show) => void;
+  onRemoveFromTracking?: (show: Show) => void;
   showAddButton?: boolean;
+  showRemoveButton?: boolean;
+  userShow?: any; // UserShow type for progress display
   testID?: string;
 }
 
@@ -17,7 +20,10 @@ export default function ShowCard({
   show, 
   onPress, 
   onAddToTracking, 
+  onRemoveFromTracking,
   showAddButton = false,
+  showRemoveButton = false,
+  userShow,
   testID 
 }: ShowCardProps) {
   const theme = useTheme();
@@ -35,6 +41,12 @@ export default function ShowCard({
   const handleAddToTracking = () => {
     if (onAddToTracking) {
       onAddToTracking(show);
+    }
+  };
+
+  const handleRemoveFromTracking = () => {
+    if (onRemoveFromTracking) {
+      onRemoveFromTracking(show);
     }
   };
 
@@ -97,6 +109,17 @@ export default function ShowCard({
               </Text>
             )}
 
+            {/* Progress display for user shows */}
+            {userShow && (
+              <Text 
+                variant="bodySmall" 
+                style={[styles.progress, { color: theme.colors.primary }]}
+                testID={`${testID || `show-card-${show.id}`}-progress`}
+              >
+                S{userShow.current_season}E{userShow.current_episode} • {userShow.status}
+              </Text>
+            )}
+
             {/* Add to Tracking Button */}
             {showAddButton && onAddToTracking && (
               <Button
@@ -107,6 +130,19 @@ export default function ShowCard({
                 testID={`${testID || `show-card-${show.id}`}-add-button`}
               >
                 Add to Tracking
+              </Button>
+            )}
+
+            {/* Remove from Tracking Button */}
+            {showRemoveButton && onRemoveFromTracking && (
+              <Button
+                mode="outlined"
+                onPress={handleRemoveFromTracking}
+                style={styles.removeButton}
+                contentStyle={styles.removeButtonContent}
+                testID={`${testID || `show-card-${show.id}`}-remove-button`}
+              >
+                Remove
               </Button>
             )}
           </View>
@@ -152,10 +188,21 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 12,
   },
+  progress: {
+    fontWeight: '500',
+    marginBottom: 8,
+  },
   addButton: {
     alignSelf: 'flex-start',
+    marginBottom: 4,
   },
   addButtonContent: {
+    paddingHorizontal: 8,
+  },
+  removeButton: {
+    alignSelf: 'flex-start',
+  },
+  removeButtonContent: {
     paddingHorizontal: 8,
   },
 });

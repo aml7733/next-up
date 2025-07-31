@@ -113,6 +113,38 @@ jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => {
 
 // Mock services - but NOT the stores (that's the key difference from setupTests.ts)
 jest.mock('../../services/tmdb', () => ({
-  searchShows: jest.fn(),
-  getShowDetails: jest.fn(),
+  tmdbService: {
+    searchShows: jest.fn(),
+    getShowDetails: jest.fn(),
+    getShowCredits: jest.fn(),
+    getPopularShows: jest.fn(),
+    getTrendingShows: jest.fn(),
+  },
+}));
+
+// Mock database service
+jest.mock('../../services/database', () => ({
+  localDB: {
+    init: jest.fn(),
+    createUser: jest.fn(),
+    getUserByUsername: jest.fn(),
+    getUserById: jest.fn(),
+    updateUser: jest.fn(),
+    deleteUser: jest.fn(),
+    addShow: jest.fn(),
+    getShowById: jest.fn(),
+    searchShows: jest.fn(),
+    addUserShow: jest.fn(),
+    getUserShows: jest.fn(),
+    getUserShow: jest.fn(),
+    updateUserShow: jest.fn(),
+    updateUserShowStatus: jest.fn(),
+    updateUserShowProgress: jest.fn(),
+    deleteUserShow: jest.fn(),
+    cacheShow: jest.fn(),
+    getShow: jest.fn(),
+    searchCachedShows: jest.fn(),
+    exportData: jest.fn(),
+    importData: jest.fn(),
+  },
 }));

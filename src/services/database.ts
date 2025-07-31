@@ -312,6 +312,15 @@ class LocalDatabase {
     `, [status, userId, showId]);
   }
 
+  async deleteUserShow(userId: string, showId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    await this.db.runAsync(`
+      DELETE FROM user_shows 
+      WHERE user_id = ? AND show_id = ?
+    `, [userId, showId]);
+  }
+
   // Data export/import for backup
   async exportData(): Promise<any> {
     if (!this.db) throw new Error('Database not initialized');
