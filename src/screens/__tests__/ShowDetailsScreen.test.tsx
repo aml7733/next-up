@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, fireEvent, act } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import ShowDetailsScreen from '../ShowDetailsScreen';
 import { useAuthStore } from '../../store/authStore';
@@ -79,6 +79,12 @@ const mockUpdateShowProgress = jest.fn();
 const mockRemoveShow = jest.fn();
 
 describe('ShowDetailsScreen', () => {
+  beforeAll(() => {
+    jest.useFakeTimers();
+  });
+  afterAll(() => {
+    jest.useRealTimers();
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     
@@ -103,18 +109,18 @@ describe('ShowDetailsScreen', () => {
       fetchUserShows: jest.fn(),
     });
 
-    // Mock tmdb service to resolve with show data
+    // Helper to create a timer-based async resolution so we can flush inside act
+    const asyncResolve = <T,>(value: T) => new Promise<T>(resolve => setTimeout(() => resolve(value), 0));
+
     const { tmdbService } = require('../../services/tmdb');
-    tmdbService.getShowDetails.mockResolvedValue(mockShow);
-    
-    // Mock new Phase 1.5 methods
-    tmdbService.getTotalEpisodeCount.mockResolvedValue({
+    tmdbService.getShowDetails.mockImplementation(() => asyncResolve(mockShow));
+    tmdbService.getTotalEpisodeCount.mockImplementation(() => asyncResolve({
       totalEpisodes: 62,
       seasonCount: 5
-    });
-    tmdbService.calculateWatchedEpisodes.mockResolvedValue(13);
-    tmdbService.isShowCompleted.mockResolvedValue(false);
-    tmdbService.getNextEpisode.mockResolvedValue({
+    }));
+    tmdbService.calculateWatchedEpisodes.mockImplementation(() => asyncResolve(13));
+    tmdbService.isShowCompleted.mockImplementation(() => asyncResolve(false));
+    tmdbService.getNextEpisode.mockImplementation(() => asyncResolve({
       id: 456,
       episode_number: 6,
       season_number: 2,
@@ -122,7 +128,7 @@ describe('ShowDetailsScreen', () => {
       overview: 'Jesse\'s dealers get ripped off.',
       air_date: '2009-04-12',
       still_path: '/next-episode.jpg'
-    });
+    }));
   });
 
   it('renders loading state initially', () => {
@@ -137,13 +143,10 @@ describe('ShowDetailsScreen', () => {
     const { findByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-    
-    // Wait for show details to load and state updates to complete
-    await act(async () => {
-      await findByText('Breaking Bad');
-    });
-    
-    // Should show show details
+
+  // Flush timer-based async promises
+  await act(async () => { jest.runAllTimers(); });
+  await findByText('Breaking Bad');
     expect(await findByText('2008 • ⭐ 9.3')).toBeTruthy();
     expect(await findByText('Overview')).toBeTruthy();
     expect(await findByText('A high school chemistry teacher turned methamphetamine producer.')).toBeTruthy();
@@ -153,13 +156,9 @@ describe('ShowDetailsScreen', () => {
     const { findByText, queryByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-    
-    // Wait for component to load and state updates to complete
-    await act(async () => {
-      await findByText('Breaking Bad');
-    });
-    
-    // Should show tracking section but no add button
+
+  await act(async () => { jest.runAllTimers(); });
+  await findByText('Breaking Bad');
     expect(await findByText('Tracking')).toBeTruthy();
     expect(queryByText('Add to Tracking')).toBeFalsy();
   });
@@ -178,13 +177,9 @@ describe('ShowDetailsScreen', () => {
     const { findByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-    
-    // Wait for component to load and state updates to complete
-    await act(async () => {
-      await findByText('Breaking Bad');
-    });
-    
-    // Should show add to tracking button
+
+  await act(async () => { jest.runAllTimers(); });
+  await findByText('Breaking Bad');
     expect(await findByText('Add to Tracking')).toBeTruthy();
   });
 
@@ -199,12 +194,9 @@ describe('ShowDetailsScreen', () => {
     const { findByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-    
-    // Wait for error state and all state updates to complete
-    await act(async () => {
-      await findByText('Show not found');
-    });
-    
+
+  await act(async () => { jest.runAllTimers(); });
+  expect(await findByText('Show not found')).toBeTruthy();
     expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to load show details');
     
     // Verify error was logged (but suppressed from console)

@@ -98,29 +98,36 @@ jest.mock('./services/tmdb', () => ({
   },
 }));
 
-// Mock the local database
-jest.mock('./services/database', () => ({
-  localDB: {
-    init: jest.fn(),
-    createUser: jest.fn(),
-    getUserByUsername: jest.fn(),
-    getUserById: jest.fn(),
-    getAllUsers: jest.fn(),
-    updateUser: jest.fn(),
-    deleteUser: jest.fn(),
-    addUserShow: jest.fn(),
-    getUserShows: jest.fn(),
-    updateUserShow: jest.fn(),
-    deleteUserShow: jest.fn(),
-    getUserShowByShowId: jest.fn(),
-    addShow: jest.fn(),
-    cacheShow: jest.fn(),
-    getShow: jest.fn(),
-    searchShows: jest.fn(),
-    updateShow: jest.fn(),
-    close: jest.fn(),
-  },
-}));
+// NOTE: Removed broad global mock of './services/database'.
+// Rationale:
+// - Global full mocks hid real logic and reduced test confidence.
+// - Tests should explicitly mock only what they rely on.
+// Light helper below allows targeted mocking when needed.
+// (Kept here instead of re-exporting to avoid circular jest.mock calls.)
+// Usage in a test:
+//   import { localDB } from '../services/database';
+//   import { withDBMocks } from '../setupTests.shared';
+//   const restore = withDBMocks({ getUserShows: jest.fn().mockResolvedValue([]) });
+//   ... test ...
+//   restore(); // optional cleanup
+// Only add helpers that encourage explicitness; avoid blanket mocks.
+import { localDB } from './services/database';
+type PartialLocalDB = Partial<Record<keyof typeof localDB, any>>;
+export function withDBMocks(partial: PartialLocalDB) {
+  const originals: Array<[any, string, any]> = [];
+  for (const key of Object.keys(partial) as (keyof typeof localDB)[]) {
+    // @ts-ignore - dynamic spy
+    const original = (localDB as any)[key];
+    originals.push([localDB, key as string, original]);
+    // @ts-ignore
+    (localDB as any)[key] = partial[key];
+  }
+  return () => {
+    for (const [obj, k, orig] of originals) {
+      obj[k] = orig;
+    }
+  };
+}
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -154,27 +161,7 @@ jest.mock('expo-sqlite', () => ({
   SQLiteDatabase: jest.fn(),
 }));
 
-// Mock database service
-jest.mock('./services/database', () => ({
-  localDB: {
-    init: jest.fn(),
-    createUser: jest.fn(),
-    getUserByUsername: jest.fn(),
-    getUserById: jest.fn(),
-    updateUser: jest.fn(),
-    deleteUser: jest.fn(),
-    addShow: jest.fn(),
-    getShowById: jest.fn(),
-    searchShows: jest.fn(),
-    addUserShow: jest.fn(),
-    getUserShows: jest.fn(),
-    getUserShow: jest.fn(),
-    updateUserShow: jest.fn(),
-    deleteUserShow: jest.fn(),
-    cacheShow: jest.fn(),
-    getShow: jest.fn(),
-  },
-}));
+// (Removed duplicate database mock above; consolidated into single definition.)
 
 // Mock localAuth service
 jest.mock('./services/localAuth', () => ({

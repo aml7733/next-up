@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { unstable_batchedUpdates } from 'react-native';
 import { 
   Text, 
   Button, 
@@ -38,7 +39,11 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [userShow, setUserShow] = useState<UserShow | null>(null);
+  // Derive tracked show instead of separate state to avoid extra effect update cycle
+  const userShow = useMemo<UserShow | null>(() => {
+    if (!show) return null;
+    return userShows.find(us => us.show_id === show.tmdb_id) || null;
+  }, [userShows, show]);
   
   // Enhanced episode tracking state
   const [totalEpisodes, setTotalEpisodes] = useState<number>(0);
@@ -51,14 +56,6 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   }, [showId]);
 
   useEffect(() => {
-    // Find if user is already tracking this show
-    if (show) {
-      const existingShow = userShows.find(us => us.show_id === show.tmdb_id);
-      setUserShow(existingShow || null);
-    }
-  }, [userShows, show]);
-
-  useEffect(() => {
     // Load episode data when user starts tracking or show data is available
     if (show && userShow) {
       loadEpisodeData();
@@ -67,18 +64,25 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
 
   const loadShowDetails = async () => {
     try {
-      const showDetails = await tmdbService.getShowDetails(showId);
-      setShow(showDetails);
-      
-      // Load total episode count for progress calculation
-      const { totalEpisodes: total, seasonCount: seasons } = await tmdbService.getTotalEpisodeCount(showId);
-      setTotalEpisodes(total);
-      setSeasonCount(seasons);
+      const [showDetails, counts] = await Promise.all([
+        tmdbService.getShowDetails(showId),
+        tmdbService.getTotalEpisodeCount(showId)
+      ]);
+
+      // Explicitly batch all related state updates (RN exposes unstable_batchedUpdates)
+      unstable_batchedUpdates(() => {
+        setShow(showDetails);
+        setTotalEpisodes(counts.totalEpisodes);
+        setSeasonCount(counts.seasonCount);
+        setIsLoading(false);
+      });
     } catch (error) {
       console.error('Error loading show details:', error);
       Alert.alert('Error', 'Failed to load show details');
-    } finally {
-      setIsLoading(false);
+      // Ensure loading flag cleared even on error inside a batch for consistency
+      unstable_batchedUpdates(() => {
+        setIsLoading(false);
+      });
     }
   };
 

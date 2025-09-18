@@ -47,6 +47,15 @@ class SyncService {
       console.log('SyncService initialized', this.status);
     } catch (error) {
       console.error('Failed to initialize SyncService:', error);
+      // Reset to default status on any initialization error
+      this.status = {
+        lastSync: null,
+        isRunning: false,
+        nextSync: null,
+        errorCount: 0,
+        lastError: null,
+      };
+      this.scheduleNextSync();
     }
   }
 
@@ -115,12 +124,20 @@ class SyncService {
 
       console.log(`Syncing ${showsToSync.length} shows...`);
 
-      // Sync each show
+      // Sync each show and track failures
       const syncPromises = showsToSync.map(userShow => 
         this.syncShow(userShow.show_id, options.includeEpisodes)
       );
 
-      await Promise.allSettled(syncPromises);
+      const results = await Promise.allSettled(syncPromises);
+      
+      // Check if any syncs failed
+      const failures = results.filter(result => result.status === 'rejected');
+      
+      if (failures.length > 0) {
+        const firstFailure = failures[0] as PromiseRejectedResult;
+        throw new Error(firstFailure.reason?.message || 'Show sync failed');
+      }
 
       this.updateSyncStatus(true);
       console.log('Background sync completed successfully');
@@ -263,6 +280,24 @@ class SyncService {
    * Check if a sync is needed based on last sync time
    */
   shouldSync(): boolean {
+    // Reload status from storage first
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem('syncStatus');
+        if (stored) {
+          const storedStatus = JSON.parse(stored);
+          if (storedStatus.lastSync) {
+            const lastSyncTime = new Date(storedStatus.lastSync).getTime();
+            const now = Date.now();
+            return now - lastSyncTime >= this.SYNC_INTERVAL;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check sync status:', error);
+    }
+    
+    // Fallback to current status
     if (!this.status.lastSync) {
       return true; // Never synced
     }

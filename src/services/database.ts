@@ -355,6 +355,106 @@ class LocalDatabase {
       this.db = null;
     }
   }
+
+  async cacheSeasonEpisodes(showId: number, seasonNumber: number, episodes: Episode[]): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const insertStmt = `INSERT OR REPLACE INTO episodes 
+      (tmdb_id, show_id, season_number, episode_number, name, overview, air_date, still_path, cached_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+    for (const ep of episodes) {
+      await this.db.runAsync(insertStmt, [
+        ep.id,
+        showId,
+        seasonNumber,
+        ep.episode_number,
+        ep.name,
+        ep.overview,
+        ep.air_date,
+        ep.still_path || ''
+      ]);
+    }
+  }
+
+  async getSeasonEpisodes(showId: number, seasonNumber: number): Promise<Episode[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = await this.db.getAllAsync(
+      `SELECT * FROM episodes WHERE show_id = ? AND season_number = ? ORDER BY episode_number ASC`,
+      [showId, seasonNumber]
+    ) as any[];
+    return rows.map(r => ({
+      id: r.tmdb_id || r.id,
+      episode_number: r.episode_number,
+      season_number: r.season_number,
+      name: r.name || '',
+      overview: r.overview || '',
+      air_date: r.air_date || '',
+      still_path: r.still_path || ''
+    }));
+  }
+
+  async markEpisodeWatched(userId: string, showId: number, season: number, episode: number, watchedAt = new Date()): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const id = `ue_${userId}_${showId}_${season}_${episode}`;
+    await this.db.runAsync(
+      `INSERT OR REPLACE INTO user_episodes (id, user_id, show_id, season_number, episode_number, watched, watched_at)
+       VALUES (?, ?, ?, ?, ?, TRUE, ?)`,
+      [id, userId, showId, season, episode, watchedAt.toISOString()]
+    );
+  }
+
+  async getWatchedEpisodesCount(userId: string, showId: number): Promise<number> {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = await this.db.getFirstAsync(
+      `SELECT COUNT(*) as cnt FROM user_episodes WHERE user_id = ? AND show_id = ? AND watched = TRUE`,
+      [userId, showId]
+    ) as any;
+    return row?.cnt ? Number(row.cnt) : 0;
+  }
+
+  async getNextEpisodeFromCache(showId: number, currentSeason: number, currentEpisode: number, skipUnaired = true): Promise<Episode | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    // Try next episode in same season
+    let row = await this.db.getFirstAsync(
+      `SELECT * FROM episodes WHERE show_id = ? AND season_number = ? AND episode_number = ?`,
+      [showId, currentSeason, currentEpisode + 1]
+    ) as any;
+
+    const now = new Date();
+    const isAired = (r: any) => !skipUnaired || !r?.air_date || new Date(r.air_date) <= now;
+
+    if (row && isAired(row)) {
+      return {
+        id: row.tmdb_id || row.id,
+        episode_number: row.episode_number,
+        season_number: row.season_number,
+        name: row.name || '',
+        overview: row.overview || '',
+        air_date: row.air_date || '',
+        still_path: row.still_path || ''
+      };
+    }
+
+    // Find first episode of next season that is aired
+    row = await this.db.getFirstAsync(
+      `SELECT * FROM episodes WHERE show_id = ? AND season_number = ? AND episode_number = 1`,
+      [showId, currentSeason + 1]
+    ) as any;
+
+    if (row && isAired(row)) {
+      return {
+        id: row.tmdb_id || row.id,
+        episode_number: row.episode_number,
+        season_number: row.season_number,
+        name: row.name || '',
+        overview: row.overview || '',
+        air_date: row.air_date || '',
+        still_path: row.still_path || ''
+      };
+    }
+
+    return null;
+  }
 }
 
 // Singleton instance
