@@ -146,5 +146,28 @@ jest.mock('../../services/database', () => ({
     searchCachedShows: jest.fn(),
     exportData: jest.fn(),
     importData: jest.fn(),
+    // Episode tracking additions
+    markEpisodeWatched: jest.fn(),
+    getWatchedEpisodes: jest.fn(),
+    updateUserShowDerivedFields: jest.fn(),
+    computeContiguousPointer: jest.fn((watched: { season_number: number; episode_number: number }[], currentSeason: number, currentEpisode: number) => {
+      if (!watched.length) return { season: currentSeason, episode: currentEpisode };
+      // Ensure ordered
+      const ordered = [...watched].sort((a,b)=> a.season_number - b.season_number || a.episode_number - b.episode_number);
+      let expectedSeason = 1;
+      let expectedEpisode = 1;
+      let pointer = { season: currentSeason, episode: currentEpisode };
+      for (const w of ordered) {
+        if (w.season_number === expectedSeason && w.episode_number === expectedEpisode) {
+          pointer = { season: w.season_number, episode: w.episode_number };
+          expectedEpisode += 1;
+        } else if (w.season_number === expectedSeason && w.episode_number > expectedEpisode) {
+          break; // gap
+        } else if (w.season_number > expectedSeason) {
+          break; // cannot advance without season length knowledge
+        }
+      }
+      return pointer;
+    }),
   },
 }));

@@ -1,6 +1,6 @@
 ## Episode Tracking Roadmap & Current Status
 
-Last updated: 2025-09-17
+Last updated: 2025-09-18 (post Phase A episode progression tests)
 
 This document supersedes portions of:
 - Enhanced ShowDetailsScreen Design.md
@@ -17,10 +17,10 @@ Those files now act as historical design references. This is the authoritative, 
 ### 1. Core Data Model (Priority: High)
 | Item | Status | Notes |
 |------|--------|-------|
-| Episodes table population | 🟡 | Table exists; population only when ensureSeasonCached() is called. Not triggered from normal UI flows yet. |
-| user_episodes usage | ❌ | markEpisodeWatched() exists but UI (ShowDetailsScreen) still updates pointer only via updateShowProgress. No rows written on watch. |
-| Derived fields (watched_count, last_watched_at) on user_shows | ❌ | Columns not present. Computation done ad‑hoc via tmdbService.calculateWatchedEpisodes. |
-| show_seasons meta cache | ❌ | Not implemented. Would prevent repeated season counting. |
+| Episodes table population | 🟡 | Table + cacheSeasonEpisodes in place; population occurs only when explicitly invoked (not yet auto-triggered by UI fetch). |
+| user_episodes usage | 🟡 | markEpisodeWatched() writes rows; UI not yet calling it (pointer updates bypass user_episodes). |
+| Derived fields (watched_count, last_watched_at) on user_shows | ✅ | Maintained via reconcileProgress after markEpisodeWatched. |
+| show_seasons meta cache | 🟡 | Table created (migration); no write logic yet. |
 
 ### 2. Next Episode Logic (High)
 | Item | Status | Notes |
@@ -34,8 +34,8 @@ Those files now act as historical design references. This is the authoritative, 
 ### 3. Progress Interaction (High)
 | Item | Status | Notes |
 |------|--------|-------|
-| Mark Episode Watched (writes user_episodes + pointer reconciliation) | ❌ | Only pointer update via store; no user_episodes insert. |
-| Recompute watched count locally | ❌ | Using TMDB helper; local derivation absent. |
+| Mark Episode Watched (writes user_episodes + pointer reconciliation) | ✅ | store.markEpisodeWatched implemented with DB writes + reconcileProgress pointer advancement. |
+| Recompute watched count locally | ✅ | reconcileProgress counts user_episodes and updates derived fields. UI consumption pending but data path complete. |
 | Bulk: mark season complete | ❌ | Not implemented. |
 | Bulk: mark all previous | ❌ | Not implemented. |
 | Undo last | ❌ | Not implemented. |
@@ -44,15 +44,15 @@ Those files now act as historical design references. This is the authoritative, 
 ### 4. Activity & History (Medium)
 | Item | Status | Notes |
 |------|--------|-------|
-| activity table | ❌ | Nonexistent. RecentlyWatched uses fabricated props. |
-| Populate on events | ❌ | No event hooks. |
+| activity table | 🟡 | Table created; no writes yet. |
+| Populate on events | ❌ | Event hooks not implemented. |
 | Paginated query | ❌ | Not started. |
 | RecentlyWatched powered by DB | ❌ | Component expects injected list. |
 
 ### 5. Sync Integration (Medium)
 | Item | Status | Notes |
 |------|--------|-------|
-| includeEpisodes delta sync | ❌ | syncShowEpisodes only logs. |
+| includeEpisodes delta sync | ❌ | syncShowEpisodes logs episodes; no differential logic. |
 | New season detection -> status flag | ❌ | Not implemented. |
 | Merge remote vs local progress | ❌ | No reconciliation logic. |
 | Lightweight episode metadata refresh schedule | ❌ | Single 24h schedule only. |
@@ -96,16 +96,34 @@ Those files now act as historical design references. This is the authoritative, 
 ## Phase Execution Plan (Refined)
 
 ### Phase A – Foundation (High Priority)
-1. Migration: add columns to user_shows (watched_count INTEGER DEFAULT 0, last_watched_at TEXT, has_new_season INTEGER DEFAULT 0) and create show_seasons + activity tables.
-2. Wire markEpisodeWatched into ShowDetailsScreen progress updates (insert user_episodes row + recompute pointer if contiguous).
-3. Replace tmdbService.calculateWatchedEpisodes call with local count (fallback remote if cache incomplete).
-4. Introduce simple TTL (e.g., cached_at older than 24h => refresh season on demand).
+Status: Core DB helpers + store wiring complete ✅; next: UI integration & TTL/seasons metadata.
+
+1. (Done) Add columns to user_shows (watched_count, last_watched_at, has_new_season) + create show_seasons & activity tables + user_episodes table (migration v2).
+2. (Done) Wire markEpisodeWatched into store (DB write + derived fields + gap-aware pointer).
+3. (Pending) UI layer: invoke markEpisodeWatched from ShowDetailsScreen (button / swipe / auto-advance interaction).
+4. (Pending) Replace any remote watched count usage with derived watched_count (fallback logic still to audit/remove).
+5. (Next) Introduce simple TTL (cached_at >24h) => on-demand season refresh before next-episode calculation.
+6. (Next) Begin writing show_seasons rows when caching seasons; maintain episode_count & last_air_date.
+7. (Deferred) Activity logging on watch event.
 
 ### Phase B – Progress + UI
-1. Episode list (collapsible per season, lazy load episodes). 
-2. Bulk actions (season complete, mark previous, undo last via latest user_episodes entry). 
-3. Enriched UpNext labels (relative air date, unaired state). 
-4. RecentlyWatched powered by activity table.
+1. Episode list component:
+	- (B1.1) Season fetch on expand (ensureSeasonCached + TTL check)
+	- (B1.2) Collapsible UI scaffold
+	- (B1.3) Episode row: watched state, tap to toggle (markEpisodeWatched / future unwatch)
+	- (B1.4) Perf: virtualized list per expanded season
+2. Bulk actions:
+	- (B2.1) Mark season complete (iterate remaining episodes -> batch insert user_episodes)
+	- (B2.2) Mark all previous (compute all episodes < selected contiguous gap, insert)
+	- (B2.3) Undo last (delete latest user_episodes row + reconcileProgress)
+3. UpNext enrichment:
+	- (B3.1) Relative air date label (in X days / tomorrow / today / aired X days ago)
+	- (B3.2) Unaired badge styling
+	- (B3.3) Loading shimmer while resolving next episode
+4. RecentlyWatched feed:
+	- (B4.1) Activity logging on watch
+	- (B4.2) Query last N activity rows (JOIN shows)
+	- (B4.3) UI list & navigation to episode context (future EpisodeDetails)
 
 ### Phase C – Sync & Lifecycle
 1. Episode delta sync (only fetch seasons with last_air_date change or missing). 
@@ -119,11 +137,17 @@ Those files now act as historical design references. This is the authoritative, 
 3. Debug / integrity tooling & pointer repair routine.
 
 ---
-## Immediate Next Actions (Suggested Sprint Slice)
-1. Add migration infrastructure (increment DB_VERSION, maintain simple migrations array) and create migration for new columns + tables (user_shows add columns; show_seasons; activity).
-2. Implement watched_count & last_watched_at maintenance in markEpisodeWatched (service layer) + pointer reconciliation logic.
-3. Swap ShowDetailsScreen to use episodeService.getNextEpisode & local watched count.
-4. Add minimal tests: episodeService pointer reconciliation, markEpisodeWatched -> watched_count update, nextEpisode across season boundary with unaired skip.
+## Immediate Next Actions (Refocused After Logging Work)
+1. (Done) Store markEpisodeWatched + reconciliation (pointer, derived fields).
+2. (Done) Unit tests: contiguous progression, gap handling, gap fill, derived fields update.
+3. (Pending) UI integration: ShowDetailsScreen trigger(s) for markEpisodeWatched.
+4. (Pending) Replace remote watched count usage (audit codepaths referencing tmdb counts).
+5. (Next) TTL check (episodeService.ensureSeasonCached with cached_at +24h refresh trigger).
+6. (Next) Persist show_seasons on cacheSeasonEpisodes (episode_count, last_air_date).
+7. (Planned) Unit tests: TTL refresh, nextEpisode season boundary with newly refreshed data.
+8. (Planned) Activity logging skeleton (write activity row on watch) + adapter for RecentlyWatched.
+
+Stretch (if time): skeleton activity logging on markEpisodeWatched (write activity row) feeding a query adapter for RecentlyWatched.
 
 ---
 ## Risks & Mitigations
@@ -134,11 +158,17 @@ Those files now act as historical design references. This is the authoritative, 
 | Inconsistent pointer vs watched episodes | Incorrect progress | Periodic integrity check + repair step. |
 
 ---
+## Observability Note
+Selective logger introduced (logger.errorExpected vs logger.error) to keep negative-path test noise suppressed while surfacing unexpected issues. As we wire markEpisodeWatched and reconciliation logic, instrument with logger.info (low volume) only where it aids debugging; avoid verbose per-episode logs in production builds.
+
+---
 ## Test Coverage Targets (Phase A)
 | Scenario | Test Type |
 |----------|-----------|
-| markEpisodeWatched contiguous progression | Unit (episodeService) |
-| markEpisodeWatched out-of-order (gap) no pointer advance | Unit |
+| markEpisodeWatched contiguous progression | Unit (store) ✅ |
+| markEpisodeWatched out-of-order (gap) no pointer advance | Unit (store) ✅ |
+| markEpisodeWatched gap fill advances pointer | Unit (store) ✅ |
+| Derived fields updated (watched_count, last_watched_at) | Unit (store) ✅ |
 | getNextEpisode season boundary with unaired skip | Unit |
 | Migration adds columns default values | Integration (DB) |
 
@@ -155,3 +185,5 @@ On approval, implement Phase A steps in order above. Provide migration + updated
 ---
 ## Changelog
 2025-09-17: Initial consolidation & status mapping.
+2025-09-18: Updated statuses post-migration implementation; added refined Phase A next steps.
+2025-09-18: Marked markEpisodeWatched + reconcileProgress complete; added new unit tests & adjusted immediate next actions.
