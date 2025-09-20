@@ -4862,7 +4862,11 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< Updated upstream
 "expo-router@npm:~5.1.4":
+=======
+"expo-router@npm:~5.1.3":
+>>>>>>> Stashed changes
   version: 5.1.4
   resolution: "expo-router@npm:5.1.4"
   dependencies:
@@ -7206,7 +7210,11 @@ __metadata:
     expo-image: "npm:~2.4.0"
     expo-linking: "npm:~7.1.7"
     expo-notifications: "npm:~0.31.4"
+<<<<<<< Updated upstream
     expo-router: "npm:~5.1.4"
+=======
+    expo-router: "npm:~5.1.3"
+>>>>>>> Stashed changes
     expo-sqlite: "npm:~15.2.14"
     expo-status-bar: "npm:~2.2.3"
     jest: "npm:~29.7.0"
