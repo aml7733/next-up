@@ -39,11 +39,11 @@ const migrations: Migration[] = [
         CREATE TABLE IF NOT EXISTS show_seasons (
           id INTEGER PRIMARY KEY,
           show_id INTEGER NOT NULL,
-            season_number INTEGER NOT NULL,
-            episode_count INTEGER DEFAULT 0,
-            last_air_date TEXT,
-            last_synced_at TEXT,
-            UNIQUE(show_id, season_number)
+          season_number INTEGER NOT NULL,
+          episode_count INTEGER DEFAULT 0,
+          last_air_date TEXT,
+          last_synced_at TEXT,
+          UNIQUE(show_id, season_number)
         );
       `);
 
