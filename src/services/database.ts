@@ -477,6 +477,22 @@ class LocalDatabase {
         ep.still_path || ''
       ]);
     }
+    // Persist season metadata (episode_count, last_air_date, last_synced_at) if table exists
+    try {
+      const lastAir = episodes
+        .map(e => e.air_date)
+        .filter(Boolean)
+        .sort()
+        .pop() || null;
+      await this.db.runAsync(
+        `INSERT OR REPLACE INTO show_seasons (show_id, season_number, episode_count, last_air_date, last_synced_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [showId, seasonNumber, episodes.length, lastAir]
+      );
+    } catch (e) {
+      // Table might not exist on older schema; ignore
+      console.warn('show_seasons upsert failed (non-fatal):', e);
+    }
   }
 
   async getSeasonEpisodes(showId: number, seasonNumber: number): Promise<Episode[]> {
@@ -494,6 +510,20 @@ class LocalDatabase {
       air_date: r.air_date || '',
       still_path: r.still_path || ''
     }));
+  }
+
+  async getSeasonMeta(showId: number, seasonNumber: number): Promise<{ episode_count: number; last_synced_at: string | null } | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    try {
+      const row = await this.db.getFirstAsync(
+        `SELECT episode_count, last_synced_at FROM show_seasons WHERE show_id = ? AND season_number = ?`,
+        [showId, seasonNumber]
+      ) as any;
+      if (!row) return null;
+      return { episode_count: row.episode_count || 0, last_synced_at: row.last_synced_at || null };
+    } catch {
+      return null;
+    }
   }
 
   async markEpisodeWatched(userId: string, showId: number, season: number, episode: number, watchedAt = new Date()): Promise<void> {

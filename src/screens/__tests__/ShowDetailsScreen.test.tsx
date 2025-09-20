@@ -4,21 +4,23 @@ import { Alert } from 'react-native';
 import ShowDetailsScreen from '../ShowDetailsScreen';
 import { useAuthStore } from '../../store/authStore';
 import { useShowsStore } from '../../store/showsStore';
+import { useShowDetails } from '../../hooks/useShowDetails';
+import { useEpisodeProgress } from '../../hooks/useEpisodeProgress';
 
 // Mock stores
 jest.mock('../../store/authStore');
 jest.mock('../../store/showsStore');
 
-// Mock services
+// Mock hooks
+jest.mock('../../hooks/useShowDetails');
+jest.mock('../../hooks/useEpisodeProgress');
+
+// Minimal tmdb mock for image URL helper used in component
 jest.mock('../../services/tmdb', () => ({
   tmdbService: {
-    getShowDetails: jest.fn(),
     getImageUrl: jest.fn((path: string, size: string) => 
       path ? `https://image.tmdb.org/t/p/${size}${path}` : null
     ),
-    getTotalEpisodeCount: jest.fn(),
-    getNextEpisode: jest.fn(),
-    calculateWatchedEpisodes: jest.fn(),
     isShowCompleted: jest.fn(),
   },
 }));
@@ -72,6 +74,8 @@ const mockUser = {
 // Mock implementations
 const mockUseAuthStore = useAuthStore as jest.MockedFunction<typeof useAuthStore>;
 const mockUseShowsStore = useShowsStore as jest.MockedFunction<typeof useShowsStore>;
+const mockUseShowDetails = useShowDetails as unknown as jest.MockedFunction<typeof useShowDetails>;
+const mockUseEpisodeProgress = useEpisodeProgress as unknown as jest.MockedFunction<typeof useEpisodeProgress>;
 
 const mockAddShow = jest.fn();
 const mockUpdateShowStatus = jest.fn();
@@ -79,12 +83,6 @@ const mockUpdateShowProgress = jest.fn();
 const mockRemoveShow = jest.fn();
 
 describe('ShowDetailsScreen', () => {
-  beforeAll(() => {
-    jest.useFakeTimers();
-  });
-  afterAll(() => {
-    jest.useRealTimers();
-  });
   beforeEach(() => {
     jest.clearAllMocks();
     
@@ -109,26 +107,21 @@ describe('ShowDetailsScreen', () => {
       fetchUserShows: jest.fn(),
     });
 
-    // Helper to create a timer-based async resolution so we can flush inside act
-    const asyncResolve = <T,>(value: T) => new Promise<T>(resolve => setTimeout(() => resolve(value), 0));
-
-    const { tmdbService } = require('../../services/tmdb');
-    tmdbService.getShowDetails.mockImplementation(() => asyncResolve(mockShow));
-    tmdbService.getTotalEpisodeCount.mockImplementation(() => asyncResolve({
-      totalEpisodes: 62,
-      seasonCount: 5
-    }));
-    tmdbService.calculateWatchedEpisodes.mockImplementation(() => asyncResolve(13));
-    tmdbService.isShowCompleted.mockImplementation(() => asyncResolve(false));
-    tmdbService.getNextEpisode.mockImplementation(() => asyncResolve({
-      id: 456,
-      episode_number: 6,
-      season_number: 2,
-      name: 'Peekaboo',
-      overview: 'Jesse\'s dealers get ripped off.',
-      air_date: '2009-04-12',
-      still_path: '/next-episode.jpg'
-    }));
+    // Default hook returns (loading state by default test)
+    mockUseShowDetails.mockReturnValue({
+      show: null,
+      totalEpisodes: 0,
+      seasonCount: 0,
+      isLoading: true,
+      error: null,
+      reload: jest.fn(),
+    } as any);
+    mockUseEpisodeProgress.mockReturnValue({
+      nextEpisode: null,
+      watchedCount: 0,
+      isLoading: false,
+      reload: jest.fn(),
+    } as any);
   });
 
   it('renders loading state initially', () => {
@@ -140,25 +133,50 @@ describe('ShowDetailsScreen', () => {
   });
 
   it('renders show details after loading', async () => {
+    mockUseShowDetails.mockReturnValue({
+      show: mockShow as any,
+      totalEpisodes: 62,
+      seasonCount: 5,
+      isLoading: false,
+      error: null,
+      reload: jest.fn(),
+    } as any);
+    mockUseEpisodeProgress.mockReturnValue({
+      nextEpisode: {
+        id: 456,
+        episode_number: 6,
+        season_number: 2,
+        name: 'Peekaboo',
+        overview: "Jesse's dealers get ripped off.",
+        air_date: '2009-04-12',
+        still_path: '/next-episode.jpg'
+      },
+      watchedCount: 13,
+      isLoading: false,
+      reload: jest.fn(),
+    } as any);
     const { findByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-
-  // Flush timer-based async promises
-  await act(async () => { jest.runAllTimers(); });
-  await findByText('Breaking Bad');
+    await findByText('Breaking Bad');
     expect(await findByText('2008 • ⭐ 9.3')).toBeTruthy();
     expect(await findByText('Overview')).toBeTruthy();
     expect(await findByText('A high school chemistry teacher turned methamphetamine producer.')).toBeTruthy();
   });
 
   it('shows tracking section for unauthenticated user', async () => {
+    mockUseShowDetails.mockReturnValue({
+      show: mockShow as any,
+      totalEpisodes: 62,
+      seasonCount: 5,
+      isLoading: false,
+      error: null,
+      reload: jest.fn(),
+    } as any);
     const { findByText, queryByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-
-  await act(async () => { jest.runAllTimers(); });
-  await findByText('Breaking Bad');
+    await findByText('Breaking Bad');
     expect(await findByText('Tracking')).toBeTruthy();
     expect(queryByText('Add to Tracking')).toBeFalsy();
   });
@@ -173,37 +191,38 @@ describe('ShowDetailsScreen', () => {
       signUp: jest.fn(),
       signOut: jest.fn(),
     });
+    mockUseShowDetails.mockReturnValue({
+      show: mockShow as any,
+      totalEpisodes: 62,
+      seasonCount: 5,
+      isLoading: false,
+      error: null,
+      reload: jest.fn(),
+    } as any);
 
     const { findByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-
-  await act(async () => { jest.runAllTimers(); });
-  await findByText('Breaking Bad');
+    await findByText('Breaking Bad');
     expect(await findByText('Add to Tracking')).toBeTruthy();
   });
 
   // Test API error handling
   it('handles API error gracefully', async () => {
-    // Spy on console.error to suppress expected error logging
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    
-    const { tmdbService } = require('../../services/tmdb');
-    tmdbService.getShowDetails.mockRejectedValue(new Error('API Error'));
+    mockUseShowDetails.mockReturnValue({
+      show: null,
+      totalEpisodes: 0,
+      seasonCount: 0,
+      isLoading: false,
+      error: 'Failed to load show details',
+      reload: jest.fn(),
+    } as any);
 
     const { findByText } = render(
       <ShowDetailsScreen route={mockRoute} navigation={mockNavigation} />
     );
-
-  await act(async () => { jest.runAllTimers(); });
-  expect(await findByText('Show not found')).toBeTruthy();
+    expect(await findByText('Show not found')).toBeTruthy();
     expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to load show details');
-    
-    // Verify error was logged (but suppressed from console)
-    expect(consoleSpy).toHaveBeenCalledWith('Error loading show details:', expect.any(Error));
-    
-    // Restore console.error
-    consoleSpy.mockRestore();
   });
 
   // Basic navigation test

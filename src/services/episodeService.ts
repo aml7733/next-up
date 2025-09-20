@@ -9,18 +9,21 @@ interface GetNextEpisodeOptions {
 
 class EpisodeService {
   async ensureSeasonCached(showId: number, seasonNumber: number): Promise<void> {
-    // Try cache first
-    const cached = await localDB.getSeasonEpisodes(showId, seasonNumber);
-    if (cached.length > 0) return;
-
-    // Fallback to TMDB
+    // TTL logic: refresh if no cache or last_synced_at older than 24h
+    const TTL_MS = 24 * 60 * 60 * 1000;
+    const cachedEpisodes = await localDB.getSeasonEpisodes(showId, seasonNumber);
+    const meta = await localDB.getSeasonMeta(showId, seasonNumber);
+    const stale = !meta?.last_synced_at || (Date.now() - new Date(meta.last_synced_at).getTime()) > TTL_MS;
+    if (cachedEpisodes.length > 0 && !stale) return; // Fresh enough
     try {
       const episodes = await tmdbService.getSeasonEpisodes(showId, seasonNumber);
-      if (episodes && episodes.length) {
+      if (episodes?.length) {
         await localDB.cacheSeasonEpisodes(showId, seasonNumber, episodes as Episode[]);
       }
     } catch (error) {
-      console.error('Failed to fetch season episodes from TMDB:', { showId, seasonNumber, error });
+      if (cachedEpisodes.length === 0) {
+        console.error('Failed to fetch season episodes and none cached:', { showId, seasonNumber, error });
+      } // else keep stale cache silently
     }
   }
 

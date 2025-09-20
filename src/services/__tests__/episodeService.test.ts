@@ -27,7 +27,7 @@ describe('episodeService', () => {
     (localDB as any).getSeasonEpisodes = async (sId: number, season: number) => {
       return memory[`${sId}_${season}`] ? [...memory[`${sId}_${season}`]] : [];
     };
-    (localDB as any).getNextEpisodeFromCache = async (sId: number, currentSeason: number, currentEpisode: number, skipUnaired: boolean) => {
+  (localDB as any).getNextEpisodeFromCache = async (sId: number, currentSeason: number, currentEpisode: number, skipUnaired: boolean) => {
       const list = memory[`${sId}_${currentSeason}`] || [];
       const next = list.find(ep => ep.episode_number === currentEpisode + 1);
       const now = new Date();
@@ -37,6 +37,7 @@ describe('episodeService', () => {
       const firstNext = nextSeasonList.find(ep => ep.episode_number === 1 && isAired(ep));
       return firstNext ? { ...firstNext } : null;
     };
+  (localDB as any).getSeasonMeta = async (sId: number, season: number) => memory[`meta_${sId}_${season}`] || null;
   });
 
   it('caches season episodes when missing', async () => {
@@ -91,5 +92,24 @@ describe('episodeService', () => {
     const next = await episodeService.getNextEpisode(showId, 1, 10);
     expect(next?.season_number).toBe(2);
     expect(tmdbService.getNextEpisode).toHaveBeenCalled();
+  });
+  it('TTL logic skips refresh when fresh and refreshes when stale', async () => {
+    // Seed cache with episodes
+    await localDB.cacheSeasonEpisodes(showId, 1, [
+      { id: 1, episode_number: 1, season_number: 1, name: 'Ep1', overview: '', air_date: '2024-01-01' }
+    ]);
+    // Provide fresh meta (now)
+    (memory as any)[`meta_${showId}_1`] = { episode_count: 1, last_synced_at: new Date().toISOString() };
+    (tmdbService.getSeasonEpisodes as jest.Mock).mockResolvedValueOnce([]); // Should NOT be called due to fresh
+    await episodeService.ensureSeasonCached(showId, 1);
+    expect(tmdbService.getSeasonEpisodes).not.toHaveBeenCalled();
+
+    // Now mark stale (older than 24h)
+    (memory as any)[`meta_${showId}_1`].last_synced_at = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    (tmdbService.getSeasonEpisodes as jest.Mock).mockResolvedValueOnce([
+      { id: 2, episode_number: 2, season_number: 1, name: 'Ep2', overview: '', air_date: '2024-01-02' }
+    ]);
+    await episodeService.ensureSeasonCached(showId, 1);
+    expect(tmdbService.getSeasonEpisodes).toHaveBeenCalled();
   });
 });
