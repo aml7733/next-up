@@ -1,4 +1,5 @@
 import { Show, Episode } from '../types';
+import { logger } from '../utils/logger';
 
 const TMDB_API_KEY = process.env.EXPO_PUBLIC_TMDB_API_KEY || 'YOUR_TMDB_API_KEY';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -40,7 +41,8 @@ class TMDBService {
       }
       return await response.json();
     } catch (error) {
-      console.error('TMDB fetch error:', error);
+      // Network or HTTP failures are expected negative paths in tests
+      logger.errorExpected('TMDB fetch error:', error);
       throw error;
     }
   }
@@ -53,7 +55,8 @@ class TMDBService {
         total_pages: data.total_pages,
       };
     } catch (error) {
-      console.error(`${errorContext} error:`, error);
+      // Expected when API/network fails
+      logger.errorExpected(`${errorContext} error:`, error);
       throw error;
     }
   }
@@ -66,7 +69,8 @@ class TMDBService {
     try {
       return await operation();
     } catch (error) {
-      console.error(errorMessage, error);
+      // Swallowing by returning defaultValue; treat as expected negative path
+      logger.errorExpected(errorMessage, error);
       return defaultValue;
     }
   }

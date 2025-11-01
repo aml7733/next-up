@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { unstable_batchedUpdates } from 'react-native';
 import { 
@@ -19,6 +19,8 @@ import { tmdbService } from '../services/tmdb';
 import { useAuthStore } from '../store/authStore';
 import { useShowsStore } from '../store/showsStore';
 import { LoadingState, ProgressSection, UpNextCard } from '../components';
+import { useShowDetails } from '../hooks/useShowDetails';
+import { useEpisodeProgress } from '../hooks/useEpisodeProgress';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShowDetails'>;
 
@@ -33,78 +35,18 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   const theme = useTheme();
   const { showId } = route.params;
   const { user, isAuthenticated } = useAuthStore();
-  const { userShows, addShow, updateShowStatus, updateShowProgress, removeShow } = useShowsStore();
+  const { userShows, addShow, updateShowStatus, updateShowProgress, removeShow, markEpisodeWatched, reconcileProgress } = useShowsStore();
   
-  const [show, setShow] = useState<Show | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const { show, totalEpisodes, seasonCount, isLoading, error } = useShowDetails(showId);
   // Derive tracked show instead of separate state to avoid extra effect update cycle
   const userShow = useMemo<UserShow | null>(() => {
     if (!show) return null;
     return userShows.find(us => us.show_id === show.tmdb_id) || null;
   }, [userShows, show]);
   
-  // Enhanced episode tracking state
-  const [totalEpisodes, setTotalEpisodes] = useState<number>(0);
-  const [seasonCount, setSeasonCount] = useState<number>(0);
-  const [nextEpisode, setNextEpisode] = useState<Episode | null>(null);
-  const [watchedEpisodes, setWatchedEpisodes] = useState<number>(0);
-
-  useEffect(() => {
-    loadShowDetails();
-  }, [showId]);
-
-  useEffect(() => {
-    // Load episode data when user starts tracking or show data is available
-    if (show && userShow) {
-      loadEpisodeData();
-    }
-  }, [show, userShow]);
-
-  const loadShowDetails = async () => {
-    try {
-      const [showDetails, counts] = await Promise.all([
-        tmdbService.getShowDetails(showId),
-        tmdbService.getTotalEpisodeCount(showId)
-      ]);
-
-      // Explicitly batch all related state updates (RN exposes unstable_batchedUpdates)
-      unstable_batchedUpdates(() => {
-        setShow(showDetails);
-        setTotalEpisodes(counts.totalEpisodes);
-        setSeasonCount(counts.seasonCount);
-        setIsLoading(false);
-      });
-    } catch (error) {
-      console.error('Error loading show details:', error);
-      Alert.alert('Error', 'Failed to load show details');
-      // Ensure loading flag cleared even on error inside a batch for consistency
-      unstable_batchedUpdates(() => {
-        setIsLoading(false);
-      });
-    }
-  };
-
-  const loadEpisodeData = async () => {
-    if (!show || !userShow) return;
-
-    try {
-      // Use proper episode calculation instead of rough estimate
-      const calculatedWatchedEpisodes = await tmdbService.calculateWatchedEpisodes(
-        show.tmdb_id, 
-        userShow.current_season, 
-        userShow.current_episode
-      );
-      setWatchedEpisodes(calculatedWatchedEpisodes);
-
-      // Get next episode to watch
-      const next = await tmdbService.getNextEpisode(show.tmdb_id, userShow.current_season, userShow.current_episode);
-      setNextEpisode(next);
-    } catch (error) {
-      console.error('Error loading episode data:', error);
-    }
-  };
+  const { nextEpisode, watchedCount, reload: reloadEpisodeData } = useEpisodeProgress(show?.tmdb_id, userShow);
 
   const handleAddToTracking = async () => {
     if (!isAuthenticated || !user || !show) {
@@ -167,29 +109,24 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleProgressUpdate = async (season: number, episode: number) => {
+  const handleMarkEpisodeWatched = async (season: number, episode: number) => {
     if (!user || !show || !userShow) return;
-
     setIsUpdating(true);
     try {
-      // Check if this would complete the show
-      const isCompleted = await tmdbService.isShowCompleted(show.tmdb_id, season, episode);
-      
+      await markEpisodeWatched(user.id, show.tmdb_id, season, episode, new Date());
+      await reconcileProgress(user.id, show.tmdb_id);
+      // After reconcile, userShow in state has updated pointer & derived fields
+      // Refresh displayed counts / next episode
+      reloadEpisodeData();
+      // Completion check (optional) – keep using tmdbService for now
+      const isCompleted = await tmdbService.isShowCompleted(show.tmdb_id, season, episode + 1);
       if (isCompleted) {
-        // If completing the show, update status to completed
-        await updateShowProgress(user.id, show.tmdb_id, season, episode);
         await updateShowStatus(user.id, show.tmdb_id, 'completed');
         Alert.alert('🎉 Show Completed!', `Congratulations! You've finished watching ${show.title}!`);
-      } else {
-        // Normal progress update
-        await updateShowProgress(user.id, show.tmdb_id, season, episode);
       }
-      
-      // Reload episode data to update UI
-      loadEpisodeData();
     } catch (error) {
-      console.error('Error updating progress:', error);
-      Alert.alert('Error', 'Failed to update progress.');
+      console.error('Error marking episode watched:', error);
+      Alert.alert('Error', 'Failed to mark episode watched.');
     } finally {
       setIsUpdating(false);
     }
@@ -205,6 +142,10 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
   }
 
   if (!show) {
+    if (error) {
+      // Align with previous behavior for tests
+      Alert.alert('Error', error);
+    }
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <Text>Show not found</Text>
@@ -357,18 +298,16 @@ export default function ShowDetailsScreen({ route, navigation }: Props) {
                           currentSeason={userShow.current_season}
                           currentEpisode={userShow.current_episode}
                           totalEpisodes={totalEpisodes}
-                          watchedEpisodes={watchedEpisodes}
+                          watchedEpisodes={watchedCount}
                         />
                         
                         <UpNextCard
                           episode={nextEpisode}
                           onMarkWatched={() => {
                             if (nextEpisode) {
-                              // Use the next episode's season and episode numbers for proper progression
-                              handleProgressUpdate(nextEpisode.season_number, nextEpisode.episode_number);
+                              handleMarkEpisodeWatched(nextEpisode.season_number, nextEpisode.episode_number);
                             } else {
-                              // Fallback to increment current episode if no next episode found
-                              handleProgressUpdate(userShow.current_season, userShow.current_episode + 1);
+                              handleMarkEpisodeWatched(userShow.current_season, userShow.current_episode + 1);
                             }
                           }}
                           isLoading={isUpdating}

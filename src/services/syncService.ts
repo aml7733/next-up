@@ -1,5 +1,6 @@
 import { tmdbService } from './tmdb';
 import { useShowsStore } from '../store/showsStore';
+import { logger } from '../utils/logger';
 
 export interface SyncStatus {
   lastSync: string | null;
@@ -44,9 +45,10 @@ class SyncService {
       // Schedule next sync
       this.scheduleNextSync();
       
-      console.log('SyncService initialized', this.status);
+  logger.info('SyncService initialized', this.status);
     } catch (error) {
-      console.error('Failed to initialize SyncService:', error);
+  // Initialization errors are unexpected
+  logger.error('Failed to initialize SyncService:', error);
       // Reset to default status on any initialization error
       this.status = {
         lastSync: null,
@@ -85,7 +87,7 @@ class SyncService {
    */
   async syncNow(options: SyncOptions = {}): Promise<void> {
     if (this.status.isRunning && !options.force) {
-      console.log('Sync already running, skipping...');
+  logger.info('Sync already running, skipping...');
       return;
     }
 
@@ -103,7 +105,7 @@ class SyncService {
    * Perform the actual sync operation
    */
   private async performSync(options: SyncOptions = {}): Promise<void> {
-    console.log('Starting background sync...', options);
+  logger.info('Starting background sync...', options);
     
     this.status.isRunning = true;
     this.status.lastError = null;
@@ -117,12 +119,12 @@ class SyncService {
         : userShows.filter(us => us.status === 'watching' || us.status === 'want_to_watch');
 
       if (showsToSync.length === 0) {
-        console.log('No shows to sync');
+        logger.info('No shows to sync');
         this.updateSyncStatus(true);
         return;
       }
 
-      console.log(`Syncing ${showsToSync.length} shows...`);
+      logger.info(`Syncing ${showsToSync.length} shows...`);
 
       // Sync each show and track failures
       const syncPromises = showsToSync.map(userShow => 
@@ -140,10 +142,11 @@ class SyncService {
       }
 
       this.updateSyncStatus(true);
-      console.log('Background sync completed successfully');
+  logger.info('Background sync completed successfully');
 
     } catch (error) {
-      console.error('Background sync failed:', error);
+  // Background sync failures can be expected (network, API). Suppress in tests.
+  logger.errorExpected('Background sync failed:', error);
       this.updateSyncStatus(false, error instanceof Error ? error.message : 'Unknown error');
     }
   }
@@ -169,9 +172,10 @@ class SyncService {
         await this.syncShowEpisodes(showId);
       }
 
-      console.log(`Synced show ${showId}`);
+  logger.info(`Synced show ${showId}`);
     } catch (error) {
-      console.error(`Failed to sync show ${showId}:`, error);
+  // Per-show sync failures (network/API) are expected negative paths.
+  logger.errorExpected(`Failed to sync show ${showId}:`, error);
       throw error;
     }
   }
@@ -188,9 +192,10 @@ class SyncService {
       ]);
 
       // Store episode data (future: in episodes table)
-      console.log(`Synced episodes for show ${showId}:`, episodeData);
+  logger.info(`Synced episodes for show ${showId}:`, episodeData);
     } catch (error) {
-      console.error(`Failed to sync episodes for show ${showId}:`, error);
+  // Episode sync failures (network/API) are expected negative paths.
+  logger.errorExpected(`Failed to sync episodes for show ${showId}:`, error);
       throw error;
     }
   }
@@ -210,7 +215,7 @@ class SyncService {
       this.performSync({ includeEpisodes: true });
     }, this.SYNC_INTERVAL);
 
-    console.log(`Next sync scheduled for: ${this.status.nextSync}`);
+  logger.info(`Next sync scheduled for: ${this.status.nextSync}`);
   }
 
   /**
@@ -237,7 +242,7 @@ class SyncService {
         if (this.status.errorCount < this.MAX_RETRIES) {
           this.performSync({ includeEpisodes: true });
         } else {
-          console.error('Max sync retries exceeded, stopping automatic sync');
+          logger.error('Max sync retries exceeded, stopping automatic sync');
           this.scheduleNextSync(); // Resume normal schedule
         }
       }, backoffDelay);
@@ -258,7 +263,8 @@ class SyncService {
       }
       return null;
     } catch (error) {
-      console.error('Failed to load sync status:', error);
+  // Local storage access issues are unexpected
+  logger.error('Failed to load sync status:', error);
       return null;
     }
   }
@@ -272,7 +278,7 @@ class SyncService {
         localStorage.setItem('syncStatus', JSON.stringify(this.status));
       }
     } catch (error) {
-      console.error('Failed to save sync status:', error);
+  logger.error('Failed to save sync status:', error);
     }
   }
 
@@ -294,7 +300,7 @@ class SyncService {
         }
       }
     } catch (error) {
-      console.error('Failed to check sync status:', error);
+  logger.error('Failed to check sync status:', error);
     }
     
     // Fallback to current status

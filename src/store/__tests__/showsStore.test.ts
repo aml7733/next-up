@@ -638,3 +638,93 @@ describe('showsStore', () => {
     expect(mockLocalDB.cacheShow).toHaveBeenCalledWith(updatedShowData);
   });
 });
+
+describe('showsStore episode progression', () => {
+  const userId = 'user1';
+  const showId = 9999;
+  const baseShow = {
+    id: showId,
+    tmdb_id: showId,
+    title: 'Episode Progression Show',
+    overview: '',
+    first_air_date: '2024-01-01',
+    vote_average: 0,
+    poster_path: '',
+    backdrop_path: '',
+    genre_ids: [] as number[],
+  };
+
+  let watchedEpisodes: any[];
+  let mockDB: any;
+
+  beforeEach(() => {
+    watchedEpisodes = [];
+    act(() => {
+      useShowsStore.setState({
+        userShows: [{
+          id: 'us1',
+          user_id: userId,
+          show_id: showId,
+          status: 'watching',
+          current_season: 1,
+          current_episode: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          show: baseShow,
+        } as any],
+      });
+    });
+    mockDB = require('../../services/database').localDB;
+    mockDB.markEpisodeWatched.mockResolvedValue(undefined);
+    mockDB.getWatchedEpisodes.mockImplementation(async () => watchedEpisodes.slice().sort((a,b)=> a.episode_number - b.episode_number));
+    mockDB.updateUserShowDerivedFields.mockResolvedValue(undefined);
+    mockDB.updateUserShowProgress.mockResolvedValue(undefined);
+    jest.clearAllMocks();
+  });
+
+  const runMark = async (result: any, ep: number) => {
+    watchedEpisodes.push({ season_number: 1, episode_number: ep, watched_at: new Date(Date.now() + ep * 1000).toISOString() });
+    await act(async () => {
+      await result.current.markEpisodeWatched(userId, showId, 1, ep, new Date());
+    });
+  };
+
+  it('advances pointer contiguously when watching episodes in order', async () => {
+    const { result } = renderHook(() => useShowsStore());
+    await runMark(result, 1);
+    await runMark(result, 2);
+    await runMark(result, 3);
+    const us = result.current.userShows.find(s => s.show_id === showId)!;
+    expect(us.current_episode).toBe(3);
+    expect(mockDB.updateUserShowProgress).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not advance pointer past a gap (watched 1 then 3)', async () => {
+    const { result } = renderHook(() => useShowsStore());
+    await runMark(result, 1);
+    await runMark(result, 3);
+    const us = result.current.userShows.find(s => s.show_id === showId)!;
+    expect(us.current_episode).toBe(1);
+    expect(mockDB.updateUserShowProgress).toHaveBeenCalledTimes(0);
+  });
+
+  it('fills gap later and advances pointer (watch 1,3 then 2)', async () => {
+    const { result } = renderHook(() => useShowsStore());
+    await runMark(result, 1);
+    await runMark(result, 3);
+    await runMark(result, 2);
+    const us = result.current.userShows.find(s => s.show_id === showId)!;
+    expect(us.current_episode).toBe(3);
+    expect(mockDB.updateUserShowProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates derived fields watched_count and last_watched_at', async () => {
+    const { result } = renderHook(() => useShowsStore());
+    await runMark(result, 1);
+    await runMark(result, 2);
+    const us = result.current.userShows.find(s => s.show_id === showId)!;
+    expect(us.watched_count).toBe(2);
+    expect(us.last_watched_at).toBeDefined();
+    expect(mockDB.updateUserShowDerivedFields).toHaveBeenCalledTimes(2);
+  });
+});

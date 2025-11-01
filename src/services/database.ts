@@ -3,7 +3,68 @@ import { Show, UserShow, Episode, User, WatchStatus } from '../types';
 
 // Database name and version
 const DB_NAME = 'nextup.db';
-const DB_VERSION = 1;
+// Increment DB_VERSION when adding a new migration. Keep migrations array in sync.
+const DB_VERSION = 2;
+
+interface Migration {
+  toVersion: number;
+  up: (db: SQLite.SQLiteDatabase) => Promise<void>;
+}
+
+// Ordered list of migrations. Each moves schema from previous version to toVersion.
+const migrations: Migration[] = [
+  {
+    toVersion: 2,
+    up: async (db) => {
+      // Helper to add column only if it doesn't already exist
+      const addColumnIfNotExists = async (table: string, column: string, ddl: string) => {
+        try {
+          const cols = await db.getAllAsync(`PRAGMA table_info(${table});`) as any[];
+          const exists = cols.some(c => c.name === column);
+          if (!exists) {
+            await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${ddl};`);
+          }
+        } catch (e) {
+          console.warn(`addColumnIfNotExists failed for ${table}.${column}:`, e);
+        }
+      };
+
+      // Add new columns to user_shows if they don't exist (quietly)
+      await addColumnIfNotExists('user_shows', 'watched_count', 'watched_count INTEGER DEFAULT 0');
+      await addColumnIfNotExists('user_shows', 'last_watched_at', 'last_watched_at TEXT');
+      await addColumnIfNotExists('user_shows', 'has_new_season', 'has_new_season INTEGER DEFAULT 0');
+
+      // show_seasons meta cache
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS show_seasons (
+          id INTEGER PRIMARY KEY,
+          show_id INTEGER NOT NULL,
+          season_number INTEGER NOT NULL,
+          episode_count INTEGER DEFAULT 0,
+          last_air_date TEXT,
+          last_synced_at TEXT,
+          UNIQUE(show_id, season_number)
+        );
+      `);
+
+      // activity log
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS activity (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          show_id INTEGER NOT NULL,
+          type TEXT NOT NULL,
+          season INTEGER,
+          episode INTEGER,
+          meta TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users (id),
+          FOREIGN KEY (show_id) REFERENCES shows (tmdb_id)
+        );
+      `);
+    }
+  }
+];
 
 class LocalDatabase {
   private db: SQLite.SQLiteDatabase | null = null;
@@ -11,7 +72,8 @@ class LocalDatabase {
   async init(): Promise<void> {
     try {
       this.db = await SQLite.openDatabaseAsync(DB_NAME);
-      await this.createTables();
+  await this.createTables();
+  await this.runMigrations();
     } catch (error) {
       console.error('Database initialization failed:', error);
       throw error;
@@ -50,7 +112,7 @@ class LocalDatabase {
       );
     `);
 
-    // User shows (tracking)
+  // User shows (tracking)
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS user_shows (
         id TEXT PRIMARY KEY,
@@ -63,13 +125,16 @@ class LocalDatabase {
         notes TEXT,
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    watched_count INTEGER DEFAULT 0,
+    last_watched_at TEXT,
+    has_new_season INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users (id),
         FOREIGN KEY (show_id) REFERENCES shows (tmdb_id),
         UNIQUE(user_id, show_id)
       );
     `);
 
-    // Episodes table (cached from TMDB)
+  // Episodes table (cached from TMDB)
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS episodes (
         id INTEGER PRIMARY KEY,
@@ -87,7 +152,7 @@ class LocalDatabase {
       );
     `);
 
-    // User episode progress
+  // User episode progress
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS user_episodes (
         id TEXT PRIMARY KEY,
@@ -102,6 +167,39 @@ class LocalDatabase {
         UNIQUE(user_id, show_id, season_number, episode_number)
       );
     `);
+  }
+
+  private async getCurrentUserVersion(db: SQLite.SQLiteDatabase): Promise<number> {
+    // Use PRAGMA user_version to store schema version
+    const row = await db.getFirstAsync('PRAGMA user_version;') as any;
+    return row?.user_version ? Number(row.user_version) : 0;
+  }
+
+  private async setUserVersion(db: SQLite.SQLiteDatabase, version: number): Promise<void> {
+    await db.execAsync(`PRAGMA user_version = ${version};`);
+  }
+
+  private async runMigrations(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db;
+    try {
+      const current = await this.getCurrentUserVersion(db);
+      if (current >= DB_VERSION) {
+        return; // Up to date
+      }
+      // Apply migrations in order
+      for (const m of migrations) {
+        if (m.toVersion > current && m.toVersion <= DB_VERSION) {
+          console.log(`Applying migration to version ${m.toVersion}`);
+          await m.up(db);
+          await this.setUserVersion(db, m.toVersion);
+        }
+      }
+      console.log('Migrations complete');
+    } catch (error) {
+      console.error('Migration failed:', error);
+      throw error;
+    }
   }
 
   // User operations
@@ -330,6 +428,10 @@ class LocalDatabase {
     const userShows = await this.db.getAllAsync('SELECT * FROM user_shows');
     const episodes = await this.db.getAllAsync('SELECT * FROM episodes');
     const userEpisodes = await this.db.getAllAsync('SELECT * FROM user_episodes');
+    let showSeasons: any[] = [];
+    let activity: any[] = [];
+    try { showSeasons = await this.db.getAllAsync('SELECT * FROM show_seasons'); } catch {}
+    try { activity = await this.db.getAllAsync('SELECT * FROM activity'); } catch {}
 
     return {
       version: DB_VERSION,
@@ -338,7 +440,9 @@ class LocalDatabase {
       shows,
       user_shows: userShows,
       episodes,
-      user_episodes: userEpisodes
+      user_episodes: userEpisodes,
+      show_seasons: showSeasons,
+      activity
     };
   }
 
@@ -373,6 +477,22 @@ class LocalDatabase {
         ep.still_path || ''
       ]);
     }
+    // Persist season metadata (episode_count, last_air_date, last_synced_at) if table exists
+    try {
+      const lastAir = episodes
+        .map(e => e.air_date)
+        .filter(Boolean)
+        .sort()
+        .pop() || null;
+      await this.db.runAsync(
+        `INSERT OR REPLACE INTO show_seasons (show_id, season_number, episode_count, last_air_date, last_synced_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [showId, seasonNumber, episodes.length, lastAir]
+      );
+    } catch (e) {
+      // Table might not exist on older schema; ignore
+      console.warn('show_seasons upsert failed (non-fatal):', e);
+    }
   }
 
   async getSeasonEpisodes(showId: number, seasonNumber: number): Promise<Episode[]> {
@@ -392,6 +512,20 @@ class LocalDatabase {
     }));
   }
 
+  async getSeasonMeta(showId: number, seasonNumber: number): Promise<{ episode_count: number; last_synced_at: string | null } | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    try {
+      const row = await this.db.getFirstAsync(
+        `SELECT episode_count, last_synced_at FROM show_seasons WHERE show_id = ? AND season_number = ?`,
+        [showId, seasonNumber]
+      ) as any;
+      if (!row) return null;
+      return { episode_count: row.episode_count || 0, last_synced_at: row.last_synced_at || null };
+    } catch {
+      return null;
+    }
+  }
+
   async markEpisodeWatched(userId: string, showId: number, season: number, episode: number, watchedAt = new Date()): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     const id = `ue_${userId}_${showId}_${season}_${episode}`;
@@ -400,6 +534,64 @@ class LocalDatabase {
        VALUES (?, ?, ?, ?, ?, TRUE, ?)`,
       [id, userId, showId, season, episode, watchedAt.toISOString()]
     );
+  }
+
+  async getWatchedEpisodes(userId: string, showId: number): Promise<{ season_number: number; episode_number: number; watched_at: string }[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = await this.db.getAllAsync(
+      `SELECT season_number, episode_number, watched_at
+       FROM user_episodes
+       WHERE user_id = ? AND show_id = ? AND watched = TRUE
+       ORDER BY season_number ASC, episode_number ASC`,
+      [userId, showId]
+    ) as any[];
+    return rows.map(r => ({
+      season_number: r.season_number,
+      episode_number: r.episode_number,
+      watched_at: r.watched_at || ''
+    }));
+  }
+
+  async updateUserShowDerivedFields(userId: string, showId: number, watchedCount: number, lastWatchedAt: string | null): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync(
+      `UPDATE user_shows
+       SET watched_count = ?, last_watched_at = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ? AND show_id = ?`,
+      [watchedCount, lastWatchedAt, userId, showId]
+    );
+  }
+
+  /**
+   * Compute the highest contiguous (season, episode) pointer starting at (1,1)
+   * given the set of watched episodes. Assumes seasons increment by 1 and
+   * episode numbers start at 1. Stops at first gap.
+   */
+  computeContiguousPointer(watched: { season_number: number; episode_number: number }[], currentSeason: number, currentEpisode: number): { season: number; episode: number } {
+    // If empty, keep existing pointer
+    if (!watched.length) {
+      return { season: currentSeason, episode: currentEpisode };
+    }
+    let expectedSeason = 1;
+    let expectedEpisode = 1;
+    let pointer = { season: currentSeason, episode: currentEpisode };
+    for (const w of watched) {
+      if (w.season_number === expectedSeason && w.episode_number === expectedEpisode) {
+        // Advance pointer to this watched episode (contiguous)
+        pointer = { season: w.season_number, episode: w.episode_number };
+        // Move expected forward
+        expectedEpisode += 1;
+      } else if (w.season_number === expectedSeason && w.episode_number > expectedEpisode) {
+        // Gap in same season
+        break;
+      } else if (w.season_number > expectedSeason) {
+        // Move to next season only if we ended exactly at end-of-season; we don't know season lengths here so stop.
+        break;
+      }
+      // Season rollover heuristic: if too many episodes? Lacking season length we stop at gaps anyway.
+      // More robust logic will require season episode counts.
+    }
+    return pointer;
   }
 
   async getWatchedEpisodesCount(userId: string, showId: number): Promise<number> {

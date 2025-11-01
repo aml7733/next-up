@@ -34,6 +34,10 @@ export interface UserShow {
   created_at: string;
   updated_at: string;
   show?: Show; // Optional show details for convenience
+  // Derived fields (optional - added in later schema versions)
+  watched_count?: number;
+  last_watched_at?: string | null;
+  has_new_season?: boolean;
 }
 
 export type WatchStatus = 'watching' | 'completed' | 'paused' | 'dropped' | 'want_to_watch';
